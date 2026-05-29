@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import type { Property, PropertyFormData, PropertyType } from "@/types/property";
 
 const PROPERTY_TYPES: PropertyType[] = ["villa", "apartment", "house", "land", "commercial", "other"];
@@ -18,13 +19,11 @@ export function PropertyForm({ property }: PropertyFormProps) {
   const [city, setCity] = useState(property?.city || "");
   const [type, setType] = useState<PropertyType>(property?.type || "apartment");
   const [description, setDescription] = useState(property?.description || "");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const isEditing = !!property;
 
   async function handleSubmit() {
-    setError("");
     setLoading(true);
 
     try {
@@ -38,7 +37,7 @@ export function PropertyForm({ property }: PropertyFormProps) {
       };
 
       if (!body.title || !body.location || !body.city || isNaN(body.price)) {
-        setError("Please fill in all required fields");
+        toast.error("Please fill in all required fields");
         setLoading(false);
         return;
       }
@@ -59,21 +58,17 @@ export function PropertyForm({ property }: PropertyFormProps) {
         throw new Error(data.error || "Something went wrong");
       }
 
+      toast.success(isEditing ? "Property updated" : "Property created");
       router.push("/dashboard/properties");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      toast.error(err instanceof Error ? err.message : "An unexpected error occurred");
       setLoading(false);
     }
   }
 
   return (
     <div className="space-y-4">
-      {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-          {error}
-        </div>
-      )}
       <div>
         <label htmlFor="title" className="block text-sm font-medium text-zinc-300">
           Title <span className="text-zinc-500">*</span>

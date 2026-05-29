@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import twilio from "twilio";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +39,6 @@ export async function POST(request: NextRequest) {
     const from = process.env.TWILIO_WHATSAPP_FROM;
 
     if (accountSid && authToken && from && conversation.phone) {
-      const { default: twilio } = await import("twilio");
       const client = twilio(accountSid, authToken);
       await client.messages.create({
         from: `whatsapp:${from}`,

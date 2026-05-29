@@ -35,9 +35,11 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
             {leads.length} lead{leads.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4" />
-          Add Lead
+        <Button asChild>
+          <a href="/dashboard/leads/new">
+            <Plus className="h-4 w-4" />
+            Add Lead
+          </a>
         </Button>
       </div>
 

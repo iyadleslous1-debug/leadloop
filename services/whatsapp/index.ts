@@ -1,3 +1,4 @@
+import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectIntent, classifyLeadScore } from "@/services/ai/intent";
 import { findBestMatches } from "@/services/ai/matching";
@@ -17,7 +18,6 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   }
 
   try {
-    const twilio = require("twilio");
     const client = twilio(accountSid, authToken);
 
     const message = await client.messages.create({

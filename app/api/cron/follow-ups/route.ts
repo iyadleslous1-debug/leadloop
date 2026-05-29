@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import twilio from "twilio";
 
 export async function GET() {
   try {
@@ -22,7 +23,6 @@ export async function GET() {
       return NextResponse.json({ status: "ok", sent: 0 });
     }
 
-    const { default: twilio } = await import("twilio");
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const from = process.env.TWILIO_WHATSAPP_FROM;
