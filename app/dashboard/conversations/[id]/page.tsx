@@ -52,6 +52,7 @@ export default async function ConversationPage({
         conversationId={conv.id}
         phone={conv.phone}
         contactName={conv.contact_name}
+        aiActive={conv.ai_active}
         initialMessages={msgs}
       />
     </div>

@@ -64,15 +64,27 @@ export async function completeFollowUp(id: string) {
 export async function scheduleDefaultFollowUps(leadId: string) {
   const now = new Date();
 
-  const day1 = new Date(now);
-  day1.setDate(day1.getDate() + 1);
-  await scheduleFollowUp(leadId, day1, "suggestion", "Hi! Just checking in — would you like to see more properties matching your preferences?");
+  const week1 = new Date(now);
+  week1.setDate(week1.getDate() + 7);
+  await scheduleFollowUp(leadId, week1, "suggestion", "Hi! Just checking in — would you like to see more properties matching your preferences?");
 
-  const day3 = new Date(now);
-  day3.setDate(day3.getDate() + 3);
-  await scheduleFollowUp(leadId, day3, "reminder", "Reminder: We have some great new listings that might interest you. Want to take a look?");
+  const week2 = new Date(now);
+  week2.setDate(week2.getDate() + 14);
+  await scheduleFollowUp(leadId, week2, "reminder", "Reminder: We have some great new listings that might interest you. Want to take a look?");
 
-  const day7 = new Date(now);
-  day7.setDate(day7.getDate() + 7);
-  await scheduleFollowUp(leadId, day7, "update", "Great news! New properties just listed. Would you like to schedule a visit?");
+  const week3 = new Date(now);
+  week3.setDate(week3.getDate() + 21);
+  await scheduleFollowUp(leadId, week3, "update", "Great news! New properties just listed in your preferred area. Would you like to schedule a visit?");
+
+  const week4 = new Date(now);
+  week4.setDate(week4.getDate() + 28);
+  await scheduleFollowUp(leadId, week4, "update", "Still looking? We update our listings weekly. Here are this week's best picks for you!");
+
+  const week6 = new Date(now);
+  week6.setDate(week6.getDate() + 42);
+  await scheduleFollowUp(leadId, week6, "update", "It's been a while! We have fresh listings that match your criteria. Interested?");
+
+  const week8 = new Date(now);
+  week8.setDate(week8.getDate() + 56);
+  await scheduleFollowUp(leadId, week8, "update", "Monthly property digest: Here are the newest listings in your area. Let us know if anything catches your eye!");
 }

@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Send } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Send, Bot, User } from "lucide-react";
 import type { Message } from "@/types/conversation";
 
 interface ChatViewProps {
   conversationId: string;
   phone: string;
   contactName: string | null;
+  aiActive: boolean;
   initialMessages: Message[];
 }
 
@@ -15,23 +17,32 @@ export function ChatView({
   conversationId,
   phone,
   contactName,
+  aiActive,
   initialMessages,
 }: ChatViewProps) {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [aiOn, setAiOn] = useState(aiActive);
+  const router = useRouter();
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  async function handleToggleAI() {
+    const newState = !aiOn;
+    setAiOn(newState);
+
+    await fetch("/api/conversations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: conversationId, ai_active: newState }),
+    });
+  }
 
   async function handleSend() {
     if (!input.trim() || sending) return;
     setSending(true);
 
     try {
-      const res = await fetch("/api/whatsapp/simulate", {
+      await fetch("/api/whatsapp/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -40,11 +51,7 @@ export function ChatView({
           message: input.trim(),
         }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        window.location.reload();
-      }
+      window.location.reload();
     } finally {
       setSending(false);
     }
@@ -52,6 +59,26 @@ export function ChatView({
 
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-zinc-800 bg-zinc-900">
+      {/* Header with toggle */}
+      <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
+        <span className="text-sm text-zinc-400">
+          {aiOn ? "AI is handling this chat" : "Owner is handling this chat"}
+        </span>
+        <button
+          type="button"
+          onClick={handleToggleAI}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            aiOn
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          }`}
+        >
+          {aiOn ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+          {aiOn ? "AI Active" : "Take Over"}
+        </button>
+      </div>
+
+      {/* Messages */}
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((msg) => (
           <div
@@ -79,9 +106,10 @@ export function ChatView({
             </div>
           </div>
         ))}
-        <div ref={bottomRef} />
+        <div ref={(el) => el?.scrollIntoView({ behavior: "smooth" })} />
       </div>
 
+      {/* Input */}
       <div className="border-t border-zinc-800 p-3">
         <div className="flex items-center gap-2">
           <input
@@ -94,14 +122,15 @@ export function ChatView({
                 handleSend();
               }
             }}
-            placeholder="Type a reply..."
-            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none"
+            placeholder={aiOn ? "AI is handling replies..." : "Type a reply..."}
+            disabled={aiOn}
+            className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none disabled:opacity-50"
           />
           <button
             type="button"
             onClick={handleSend}
-            disabled={sending || !input.trim()}
-            style={{ cursor: sending || !input.trim() ? "not-allowed" : "pointer" }}
+            disabled={sending || !input.trim() || aiOn}
+            style={{ cursor: sending || !input.trim() || aiOn ? "not-allowed" : "pointer" }}
             className="inline-flex items-center justify-center rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-900 transition-colors hover:bg-zinc-200 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />

@@ -5,10 +5,12 @@ export interface Conversation {
   id: string;
   phone: string;
   contact_name: string | null;
+  owner_id: string | null;
   lead_id: string | null;
   property_id: string | null;
   intent: string | null;
   intent_score: number | null;
+  ai_active: boolean;
   status: ConversationStatus;
   last_message_at: string;
   created_at: string;

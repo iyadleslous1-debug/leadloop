@@ -16,13 +16,13 @@ export async function getNotifications() {
 
 export async function getUnreadCount() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { count, error } = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
     .eq("read", false);
 
   if (error) throw error;
-  return data.length;
+  return count || 0;
 }
 
 export async function markAsRead(id: string) {

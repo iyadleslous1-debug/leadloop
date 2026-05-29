@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectIntent, classifyLeadScore } from "@/services/ai/intent";
-import { findBestMatches, generateRecommendationText } from "@/services/ai/matching";
+import { findBestMatches } from "@/services/ai/matching";
+import { generateAIReply, detectIntentWithAI } from "@/services/ai/gemini";
 import { createNotification } from "@/services/notifications";
 import { scheduleDefaultFollowUps } from "@/services/follow-ups";
 import type { Message } from "@/types/conversation";
@@ -95,8 +96,9 @@ export async function processIncomingMessage(
   console.log("\n[STEP 1] Finding/creating conversation...");
   const conversation = await findOrCreateConversation(phone, contactName, ownerId);
   console.log("[STEP 1] Conversation ID:", conversation.id);
+  console.log("[STEP 1] AI active:", conversation.ai_active);
 
-  // Step 2: Store incoming message
+  // Store the incoming message
   console.log("\n[STEP 2] Storing incoming message...");
   const { data: storedMsg, error: msgError } = await admin
     .from("messages")
@@ -114,15 +116,41 @@ export async function processIncomingMessage(
   }
   console.log("[STEP 2] Message stored:", storedMsg.id);
 
-  // Step 3: Run intent detection
+  // If AI is off (owner took over), store message only — no reply
+  if (!conversation.ai_active) {
+    console.log("[PIPELINE] AI is off — owner is handling. No reply sent.");
+    await admin
+      .from("conversations")
+      .update({ last_message_at: new Date().toISOString() })
+      .eq("id", conversation.id);
+
+    return {
+      conversationId: conversation.id,
+      reply: null,
+      leadCreated: false,
+      leadId: null,
+      leadStatus: null,
+      matchesFound: 0,
+      aiHandled: false,
+    };
+  }
+
+  // Step 3: Run intent detection (Gemini AI first, fallback to rule-based)
   console.log("\n[STEP 3] Detecting intent...");
-  const intent = detectIntent(text);
+  const geminiIntent = await detectIntentWithAI(text);
+  let intent;
+  if (geminiIntent) {
+    console.log("[STEP 3] Using Gemini AI intent detection");
+    intent = geminiIntent;
+  } else {
+    console.log("[STEP 3] Falling back to rule-based intent detection");
+    intent = detectIntent(text);
+  }
   console.log("[STEP 3] Intent score:", intent.score);
   console.log("[STEP 3] Intent summary:", intent.summary);
   console.log("[STEP 3] Budget:", intent.budget ? `${intent.budget.min} - ${intent.budget.max}` : "none");
   console.log("[STEP 3] Location:", intent.location || "none");
   console.log("[STEP 3] Property type:", intent.propertyType || "none");
-  console.log("[STEP 3] Urgency:", intent.urgency, "Interest:", intent.interest);
 
   // Step 4: Run property matching
   console.log("\n[STEP 4] Matching properties...");
@@ -132,9 +160,21 @@ export async function processIncomingMessage(
     console.log(`  ${i + 1}. ${m.property.title} ($${m.property.price.toLocaleString()}) - ${m.property.city}`);
   });
 
-  // Step 5: Generate reply
-  console.log("\n[STEP 5] Generating reply...");
-  const reply = generateRecommendationText(matches, contactName || phone);
+  // Step 5: Generate AI reply (Gemini first, fallback to template)
+  console.log("\n[STEP 5] Generating AI reply...");
+  const matchedPropertyData = matches.map((m) => ({
+    title: m.property.title,
+    price: m.property.price,
+    city: m.property.city,
+    location: m.property.location,
+    type: m.property.type,
+  }));
+  const reply = await generateAIReply(
+    contactName || phone,
+    text,
+    matchedPropertyData,
+    intent.summary
+  );
   console.log("[STEP 5] Reply:", reply);
 
   // Step 6: Determine lead status

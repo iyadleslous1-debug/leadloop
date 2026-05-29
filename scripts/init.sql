@@ -132,6 +132,8 @@ create table if not exists public.conversations (
 
 alter table public.conversations add column if not exists owner_id uuid references public.profiles(id) on delete set null;
 
+alter table public.conversations add column if not exists ai_active boolean not null default true;
+
 alter table public.conversations enable row level security;
 
 drop policy if exists "Users can view own conversations" on public.conversations;
