@@ -1,9 +1,50 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { IntentResult } from "./intent";
 
-const genAI = process.env.GEMINI_API_KEY
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  : null;
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.1-8b-instant";
+
+function getApiKey() {
+  return process.env.GROQ_API_KEY;
+}
+
+async function chatCompletion(prompt: string, systemPrompt?: string): Promise<string | null> {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const messages = [];
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  messages.push({ role: "user", content: prompt });
+
+  try {
+    const res = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages,
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("[Groq] API error:", res.status, err);
+      return null;
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (err) {
+    console.error("[Groq] Request error:", err);
+    return null;
+  }
+}
 
 export async function generateAIReply(
   buyerName: string,
@@ -11,12 +52,6 @@ export async function generateAIReply(
   matchedProperties: { title: string; price: number; city: string; location: string; type: string }[],
   intentSummary: string
 ): Promise<string> {
-  if (!genAI) {
-    return generateFallbackReply(buyerName, matchedProperties);
-  }
-
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
   const propertyList = matchedProperties.length > 0
     ? matchedProperties.map((p, i) =>
         `${i + 1}. ${p.title} — ${p.city}, ${p.location}\n   Price: $${p.price.toLocaleString()}\n   Type: ${p.type}`
@@ -42,20 +77,13 @@ Rules:
 - Do NOT use markdown formatting — plain text only for WhatsApp
 - Keep the reply under 300 words`;
 
-  try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    return response.text();
-  } catch (err) {
-    console.error("[Gemini] Error:", err);
-    return generateFallbackReply(buyerName, matchedProperties);
-  }
+  const reply = await chatCompletion(prompt);
+  if (reply) return reply;
+  return generateFallbackReply(buyerName, matchedProperties);
 }
 
 export async function detectIntentWithAI(message: string): Promise<IntentResult | null> {
-  if (!genAI) return null;
-
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  if (!getApiKey()) return null;
 
   const prompt = `Analyze this real estate buyer message and extract structured intent data.
 
@@ -74,17 +102,19 @@ Return ONLY a JSON object (no markdown, no code fences) with these fields:
 
 If the message is not about real estate, set score to 0 and summary to "general inquiry".`;
 
+  const text = await chatCompletion(prompt, "You are an intent extraction engine. Return only valid JSON.");
+  if (!text) return null;
+
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const parsed = JSON.parse(text);
-    // Normalize budget to match IntentResult type
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
     if (parsed.budget && typeof parsed.budget === "object") {
       parsed.budget = { detected: !!(parsed.budget.min || parsed.budget.max), ...parsed.budget };
     }
     return parsed;
   } catch (err) {
-    console.error("[Gemini] Intent detection error:", err);
+    console.error("[Groq] Intent parse error:", err);
     return null;
   }
 }
