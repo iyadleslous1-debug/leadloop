@@ -88,26 +88,11 @@ export async function processIncomingMessage(
   console.log("[STEP 1] Conversation ID:", conversation.id);
   console.log("[STEP 1] AI active:", conversation.ai_active);
 
-  // Store the incoming message
-  console.log("\n[STEP 2] Storing incoming message...");
-  const { data: storedMsg, error: msgError } = await admin
-    .from("messages")
-    .insert({
-      conversation_id: conversation.id,
-      role: "user",
-      content: text,
-      metadata: {},
-    })
-    .select()
-    .single();
-  if (msgError) {
-    console.error("[STEP 2] Error storing message:", msgError);
-    throw msgError;
-  }
-  console.log("[STEP 2] Message stored:", storedMsg.id);
-
   // If AI is off (owner took over), store message only — no reply
-  if (!conversation.ai_active) {
+  // Default to true if column doesn't exist (undefined)
+  const aiActive = conversation.ai_active !== false;
+
+  if (!aiActive) {
     console.log("[PIPELINE] AI is off — owner is handling. No reply sent.");
     await admin
       .from("conversations")
