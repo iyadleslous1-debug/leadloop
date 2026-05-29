@@ -72,9 +72,7 @@ function scoreMatch(property: Property, intent: IntentResult): MatchResult {
     }
   }
 
-  score += Math.random() * 10;
-
-  return { property, score, reasons };
+  return { property, score: Math.round(score), reasons };
 }
 
 export function generateRecommendationText(matches: MatchResult[], name: string): string {

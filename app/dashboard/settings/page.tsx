@@ -1,8 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { Settings, Check } from "lucide-react";
-
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
@@ -11,50 +8,52 @@ export default function SettingsPage() {
         <p className="text-sm text-zinc-500">Configure your integrations and API keys</p>
       </div>
 
-      <WhatsAppSettings />
+      <TwilioWhatsAppSettings />
       <GeminiSettings />
       <VercelEnvNote />
     </div>
   );
 }
 
-function WhatsAppSettings() {
-  const [saved, setSaved] = useState(false);
-
+function TwilioWhatsAppSettings() {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-      <h3 className="mb-1 text-sm font-semibold text-zinc-100">WhatsApp Business API</h3>
+      <h3 className="mb-1 text-sm font-semibold text-zinc-100">WhatsApp via Twilio</h3>
       <p className="mb-4 text-xs text-zinc-500">
-        Configure your WhatsApp Business credentials. Get these from Meta Developer Dashboard.
+        Get these from your{' '}
+        <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-zinc-300 underline">
+          Twilio Console
+        </a>
+        . Buy a WhatsApp-enabled number under Messaging → WhatsApp.
       </p>
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-zinc-400">Phone Number ID</label>
+          <label className="block text-xs font-medium text-zinc-400">Account SID</label>
           <input
             type="text"
-            placeholder="1075248509013528"
+            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-400">Access Token</label>
+          <label className="block text-xs font-medium text-zinc-400">Auth Token</label>
           <input
             type="password"
-            placeholder="EAAxx..."
+            placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
             className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-400">Verify Token</label>
+          <label className="block text-xs font-medium text-zinc-400">WhatsApp Number</label>
           <input
             type="text"
-            defaultValue="leadloop-verify-2024"
+            placeholder="+14155238886"
             className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-600 focus:outline-none"
           />
         </div>
         <p className="text-xs text-zinc-600">
-          These are currently set as environment variables in Vercel. Settings page storage coming soon.
+          Set as environment variables in Vercel. Database-backed settings coming soon.
         </p>
       </div>
     </div>
@@ -98,9 +97,9 @@ function VercelEnvNote() {
       </p>
       <div className="space-y-2">
         {[
-          { name: "WHATSAPP_PHONE_NUMBER_ID", desc: "Your WhatsApp phone number ID" },
-          { name: "WHATSAPP_TOKEN", desc: "WhatsApp Business API access token" },
-          { name: "WHATSAPP_VERIFY_TOKEN", desc: "Webhook verification token" },
+          { name: "TWILIO_ACCOUNT_SID", desc: "Twilio Account SID" },
+          { name: "TWILIO_AUTH_TOKEN", desc: "Twilio Auth Token" },
+          { name: "TWILIO_WHATSAPP_FROM", desc: "Twilio WhatsApp number (e.g. +14155238886)" },
           { name: "GEMINI_API_KEY", desc: "Google Gemini free API key" },
         ].map((env) => (
           <div key={env.name} className="flex items-center justify-between rounded-lg border border-zinc-800/50 px-3 py-2">

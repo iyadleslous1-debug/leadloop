@@ -42,15 +42,28 @@ export function ChatView({
     setSending(true);
 
     try {
-      await fetch("/api/whatsapp/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone,
-          name: contactName,
-          message: input.trim(),
-        }),
-      });
+      if (aiOn) {
+        // AI is handling — run through pipeline to simulate incoming lead message
+        await fetch("/api/whatsapp/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            name: contactName,
+            message: input.trim(),
+          }),
+        });
+      } else {
+        // Owner is handling — send directly via Twilio
+        await fetch("/api/messages/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId,
+            text: input.trim(),
+          }),
+        });
+      }
       window.location.reload();
     } finally {
       setSending(false);

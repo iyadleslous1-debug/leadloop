@@ -7,37 +7,27 @@ import { scheduleDefaultFollowUps } from "@/services/follow-ups";
 import type { Message } from "@/types/conversation";
 
 export async function sendWhatsAppMessage(to: string, text: string) {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
 
-  if (!token || !phoneNumberId) {
-    console.log("[WhatsApp] No credentials configured. Would send:", text);
+  if (!accountSid || !authToken || !from) {
+    console.log("[WhatsApp] No Twilio credentials configured. Would send:", text);
     return;
   }
 
-  const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
-
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body: text },
-      }),
-    });
+    const { default: twilio } = await import("twilio");
+    const client = twilio(accountSid, authToken);
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("[WhatsApp] Send error:", err);
-    }
+    const message = await client.messages.create({
+      from: `whatsapp:${from}`,
+      to: `whatsapp:${to}`,
+      body: text,
+    });
+    console.log("[WhatsApp] Sent via Twilio, SID:", message.sid);
   } catch (err) {
-    console.error("[WhatsApp] Send error:", err);
+    console.error("[WhatsApp] Twilio error:", err);
   }
 }
 
