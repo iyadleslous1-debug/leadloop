@@ -12,12 +12,12 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   const from = process.env.TWILIO_WHATSAPP_FROM;
 
   if (!accountSid || !authToken || !from) {
-    console.log("[WhatsApp] No Twilio credentials configured. Would send:", text);
+    console.error("[WhatsApp] Missing env vars:", { hasSid: !!accountSid, hasToken: !!authToken, hasFrom: !!from });
     return;
   }
 
   try {
-    const { default: twilio } = await import("twilio");
+    const twilio = require("twilio");
     const client = twilio(accountSid, authToken);
 
     const message = await client.messages.create({
@@ -27,7 +27,7 @@ export async function sendWhatsAppMessage(to: string, text: string) {
     });
     console.log("[WhatsApp] Sent via Twilio, SID:", message.sid);
   } catch (err) {
-    console.error("[WhatsApp] Twilio error:", err);
+    console.error("[WhatsApp] Twilio send error:", err);
   }
 }
 
