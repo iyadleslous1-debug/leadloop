@@ -578,8 +578,8 @@ export async function processIncomingMessage(
     console.log("\n[STEP 7-9] Skipped (score < 0.3, no lead created)");
   }
 
-  // Step 10: Store as pending suggestion for agent review (instead of auto-sending)
-  console.log("\n[STEP 10] Storing pending suggestion...");
+  // Step 10: Auto-send reply via WhatsApp
+  console.log("\n[STEP 10] Sending reply via WhatsApp...");
 
   const suggestionMedia: string[] = [];
   for (const m of matches) {
@@ -590,22 +590,36 @@ export async function processIncomingMessage(
     }
   }
 
-  const { error: suggestionError } = await admin
-    .from("conversations")
-    .update({
-      pending_suggestion: reply,
-      pending_suggestion_media: suggestionMedia.length > 0 ? suggestionMedia : null,
-      last_message_at: new Date().toISOString(),
-    })
-    .eq("id", conversation.id);
+  if (reply) {
+    try {
+      await sendWhatsAppMessage(phone, reply, resolvedOwnerId || undefined, conversation.id, suggestionMedia);
+      console.log("[STEP 10] Reply sent to buyer on WhatsApp");
+    } catch (sendErr) {
+      console.error("[STEP 10] Failed to send via WhatsApp:", sendErr);
+    }
 
-  if (suggestionError) {
-    console.error("[STEP 10] Suggestion store error:", suggestionError);
-  } else {
-    console.log("[STEP 10] Pending suggestion stored — awaiting agent approval");
+    await admin.from("messages").insert({
+      conversation_id: conversation.id,
+      role: "assistant",
+      content: reply,
+      metadata: { matches: matchedPropertyData, media: suggestionMedia, auto_sent: true },
+    });
+
+    await admin
+      .from("conversations")
+      .update({
+        pending_suggestion: null,
+        pending_suggestion_media: null,
+        last_message_at: new Date().toISOString(),
+      })
+      .eq("id", conversation.id);
+
+    console.log("[STEP 10] Reply stored in messages and sent");
     if (suggestionMedia.length > 0) {
       console.log("[STEP 10] Attached media:", suggestionMedia.length, "image(s)");
     }
+  } else {
+    console.log("[STEP 10] No reply to send");
   }
 
   // Step 11: Store viewed properties on lead for future exclusion
