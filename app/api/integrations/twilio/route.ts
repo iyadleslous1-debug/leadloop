@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import twilio from "twilio";
 import { logError } from "@/services/logging";
+import { normalizePhone } from "@/lib/phone";
 
 export async function DELETE() {
   try {
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
         provider: "twilio",
         twilio_account_sid,
         twilio_auth_token,
-        twilio_whatsapp_from,
+        twilio_whatsapp_from: normalizePhone(twilio_whatsapp_from),
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
 
