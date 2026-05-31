@@ -5,12 +5,21 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/services/logging";
 import { normalizePhone } from "@/lib/phone";
 
+const TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+
+function twimlResponse(status: number) {
+  return new NextResponse(TWIML, {
+    status,
+    headers: { "Content-Type": "text/xml" },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const ip = request.headers.get("x-forwarded-for") || "unknown";
     const rl = checkRateLimit(`webhook:${ip}`, 20, 60000);
     if (!rl.allowed) {
-      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+      return twimlResponse(429);
     }
 
     const formData = await request.formData();
@@ -21,7 +30,7 @@ export async function POST(request: NextRequest) {
     const profileName = formData.get("ProfileName")?.toString();
 
     if (!from || !body) {
-      return NextResponse.json({ status: "ignored" });
+      return twimlResponse(200);
     }
 
     const phone = normalizePhone(from.replace("whatsapp:", ""));
@@ -41,9 +50,9 @@ export async function POST(request: NextRequest) {
 
     const result = await processIncomingMessage(phone, profileName || undefined, body, ownerId);
 
-    return NextResponse.json({ status: "processed", ...result });
+    return twimlResponse(200);
   } catch (err) {
     await logError("webhook", err, { from: request.headers.get("from") });
-    return NextResponse.json({ status: "error", error: String(err) }, { status: 500 });
+    return twimlResponse(500);
   }
 }
