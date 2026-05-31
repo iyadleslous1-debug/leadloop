@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFollowUps, getUpcomingFollowUps, completeFollowUp } from "@/services/follow-ups";
+import { logError } from "@/services/logging";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
     const followUps = days ? await getUpcomingFollowUps(days) : await getFollowUps();
     return NextResponse.json(followUps);
   } catch (err) {
+    await logError("follow-ups/get", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -25,6 +27,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logError("follow-ups/patch", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Bell } from "lucide-react";
-import { useRouter } from "next/navigation";
 import type { Notification } from "@/types/notification";
 
 export function NotificationDropdown() {
@@ -10,23 +9,6 @@ export function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
   async function fetchNotifications() {
     try {
@@ -38,6 +20,22 @@ export function NotificationDropdown() {
       }
     } catch {}
   }
+
+  useEffect(() => {
+    const id = setTimeout(fetchNotifications, 0);
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => { clearTimeout(id); clearInterval(interval); };
+  }, []);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   async function markAllRead() {
     await fetch("/api/notifications", {

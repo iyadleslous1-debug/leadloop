@@ -9,6 +9,8 @@ import {
   MessageCircle,
   BarChart3,
   Settings,
+  CalendarClock,
+  Shield,
 } from "lucide-react";
 
 const navItems = [
@@ -16,8 +18,10 @@ const navItems = [
   { href: "/dashboard/leads", label: "Leads", icon: Users },
   { href: "/dashboard/properties", label: "Properties", icon: Building2 },
   { href: "/dashboard/conversations", label: "Conversations", icon: MessageCircle },
+  { href: "/dashboard/follow-ups", label: "Follow-ups", icon: CalendarClock },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/admin", label: "Admin", icon: Shield },
 ];
 
 export function Sidebar() {

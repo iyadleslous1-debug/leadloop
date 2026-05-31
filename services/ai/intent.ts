@@ -1,41 +1,93 @@
+export type BuyerLanguage = "ar" | "fr" | "en" | "darija" | "unknown";
+
 export interface IntentResult {
   budget: { detected: boolean; min?: number; max?: number } | null;
   location: string | null;
   urgency: number;
   interest: number;
   propertyType: string | null;
+  bedrooms?: number | null;
+  purchaseTimeline?: string | null;
+  financing?: string | null;
   score: number;
   summary: string;
+  language?: BuyerLanguage;
+}
+
+const ARABIC_PATTERN = /[\u0600-\u06FF]/;
+
+const FRENCH_ACCENTS_PATTERN = /[éèêëàâùûüôöîïç]/i;
+
+const DARIJA_MARKERS = [
+  "واش", "شنو", "اشمن", "فين", "علاش", "ملي", "كيفاش",
+  "بزاف", "شويا", "دaba", "دابا", "هاد", "هاذ", "ذاك", "تلك",
+  "ana", "nta", "nti", "hna", "huma", " had ", " rak ", " raki ",
+  "wah", "lah", " walou", "bsara", "bsaraha",
+];
+
+export function detectLanguage(text: string): BuyerLanguage {
+  if (ARABIC_PATTERN.test(text)) {
+    const words = text.toLowerCase().split(/\s+/);
+    const darijaCount = DARIJA_MARKERS.filter((m) => words.some((w) => w.includes(m))).length;
+    if (darijaCount >= 2) return "darija";
+    return "ar";
+  }
+  if (FRENCH_ACCENTS_PATTERN.test(text)) return "fr";
+  return "en";
 }
 
 const URGENCY_KEYWORDS = [
   "urgent", "soon", "asap", "quick", "today", "immediately", "now", "fast", "hurry",
   "need it", "right away", "as soon as",
+  "عاجل", "بسرعة", "الآن", "ضروري", "اليوم",
+  "urgent", "vite", "rapidement", "aujourd'hui", "immédiatement",
+  "دaba", "دابا", "بزاف",
 ];
 
 const INTEREST_KEYWORDS = [
   "interested", "want to buy", "looking for", "need a", "need an",
   "visit", "see", "show", "available", "vacant", "move in",
+  "مهتم", "أبحث عن", "أريد", "نريد", "عندي", "شوف",
+  "intéressé", "cherche", "veux acheter", "visiter", "disponible",
+  "bghit", "bghina", "nadi", "chof", "tchouf", "kayn",
 ];
 
 const HIGH_INTENT_PHRASES = [
   "i want to buy", "i am interested", "when can i visit",
   "i need a property", "show me", "available now",
   "send me details", "i'm ready", "let's do it",
+  "عايز أشتري", "أريد شراء", "أنا مهتم", "أرسل التفاصيل",
+  "je veux acheter", "je suis intéressé", "envoyez les détails",
+  "bghit nchri", "bghina", "warna", "sift details",
 ];
 
 const PROPERTY_TYPE_KEYWORDS: Record<string, string[]> = {
-  villa: ["villa", "villas", "mansion"],
-  apartment: ["apartment", "flat", "condo", "condominium", "studio"],
-  house: ["house", "home", "bungalow", "townhouse"],
-  land: ["land", "plot", "vacant land", "empty lot"],
-  commercial: ["commercial", "office", "retail", "shop", "warehouse"],
+  villa: ["villa", "villas", "mansion", "فيلا", "قصر"],
+  apartment: ["apartment", "flat", "condo", "condominium", "studio", "شقة", "appartement", "appart"],
+  house: ["house", "home", "bungalow", "townhouse", "منزل", "دار", "maison"],
+  land: ["land", "plot", "vacant land", "empty lot", "أرض", "قطعة أرض", "terrain"],
+  commercial: ["commercial", "office", "retail", "shop", "warehouse", "تجاري", "محل", "مكتب", "local", "bureau"],
 };
 
 const CITIES = [
   "dubai", "abu dhabi", "sharjah", "ajman", "rak", "fujairah",
   "new york", "los angeles", "miami", "london", "paris",
   "riyadh", "jeddah", "doha", "kuwait", "manama", "muscat",
+  "algiers", "الجزائر", "alger",
+  "oran", "وهران",
+  "constantine", "قسنطينة",
+  "annaba", "عنابة",
+  "tizi ouzou", "تيزي وزو",
+  "setif", "سطيف",
+  "blida", "البليدة",
+  "tlemcen", "تلمسان",
+  "bejaia", "بجاية",
+  "biskra", "بسكرة",
+  "tebessa", "تبسة",
+  "djelfa", "الجلفة",
+  "skikda", "سكيكدة",
+  "batna", "باتنة",
+  "bab el oued", "hydra", "ben aknoun", "cheraga", "dely brahim",
 ];
 
 function extractBudgets(text: string): { min?: number; max?: number } | null {
@@ -98,6 +150,30 @@ export function detectIntent(message: string): IntentResult {
   const interestCount = countMatches(text, INTEREST_KEYWORDS);
   const hasHighIntent = HIGH_INTENT_PHRASES.some((p) => text.includes(p));
 
+  const bedroomMatch = text.match(/(\d+)\s*(bedroom|bed|chambre|غرفة|غرف)\b/);
+  const bedrooms = bedroomMatch ? parseInt(bedroomMatch[1], 10) : null;
+
+  const timelineKeywords: Record<string, string[]> = {
+    "asap": ["asap", "urgent", "immediately", "right away", "الآن", "عاجل"],
+    "1-3 months": ["this month", "next month", "in a month"],
+    "3-6 months": ["in 3 months", "a few months"],
+    "6+ months": ["not urgent", "just looking", "eventually"],
+  };
+  let purchaseTimeline: string | null = null;
+  for (const [tl, kws] of Object.entries(timelineKeywords)) {
+    if (kws.some((kw) => text.includes(kw))) { purchaseTimeline = tl; break; }
+  }
+
+  const financingKeywords: Record<string, string[]> = {
+    "cash": ["cash", "نقداً", "comptant"],
+    "mortgage": ["mortgage", "loan", "financing", "financement", "crédit", "قرض"],
+    "installments": ["installment", "تقسيط", "tranches"],
+  };
+  let financing: string | null = null;
+  for (const [fn, kws] of Object.entries(financingKeywords)) {
+    if (kws.some((kw) => text.includes(kw))) { financing = fn; break; }
+  }
+
   const urgency = Math.min(urgencyCount / 3, 1);
   const interest = Math.min((interestCount + (hasHighIntent ? 2 : 0)) / 5, 1);
   const hasBudget = budget ? 0.3 : 0;
@@ -119,8 +195,12 @@ export function detectIntent(message: string): IntentResult {
     urgency,
     interest,
     propertyType,
+    bedrooms,
+    purchaseTimeline,
+    financing,
     score,
     summary: signals.length > 0 ? signals.join(", ") : "general inquiry",
+    language: detectLanguage(message),
   };
 }
 

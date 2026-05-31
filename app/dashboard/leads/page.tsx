@@ -1,30 +1,30 @@
 import { Suspense } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Users, Download } from "lucide-react";
+import Link from "next/link";
 import { getLeads, getLeadsByStatus } from "@/services/leads";
 import { getProperties } from "@/services/properties";
 import { LeadTable } from "@/components/leads/LeadTable";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Button } from "@/components/ui/button";
 import { LeadStatusFilter } from "./lead-status-filter";
 import type { LeadStatus } from "@/types/lead";
 
 interface LeadsPageProps {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }
 
 export default async function LeadsPage({ searchParams }: LeadsPageProps) {
-  const { status } = await searchParams;
-  const activeStatus = (status as LeadStatus) || undefined;
+  const params = await searchParams;
+  const activeStatus = (params.status as LeadStatus) || undefined;
+  const page = parseInt(params.page || "1", 10) || 1;
 
-  const [leads, properties] = await Promise.all([
-    activeStatus ? getLeadsByStatus(activeStatus) : getLeads(),
-    getProperties(),
+  const [result, propResult] = await Promise.all([
+    (activeStatus ? getLeadsByStatus(activeStatus, page) : getLeads(page)).catch(() => ({ leads: [], total: 0, page: 1, totalPages: 0 })),
+    getProperties().catch(() => ({ properties: [], total: 0, page: 1, totalPages: 0 })),
   ]);
 
-  const propertyMap = new Map(properties.map((p) => [p.id, p.title]));
-  const counts = { hot: 0, warm: 0, cold: 0 };
-  for (const l of leads) {
-    if (l.status in counts) counts[l.status as keyof typeof counts]++;
-  }
+  const { leads, total, totalPages } = result;
+  const properties = propResult.properties;
 
   return (
     <div className="space-y-6">
@@ -32,15 +32,24 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
         <div>
           <h2 className="text-lg font-semibold text-zinc-100">All Leads</h2>
           <p className="text-sm text-zinc-500">
-            {leads.length} lead{leads.length !== 1 ? "s" : ""} total
+            {total} lead{total !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button asChild>
-          <a href="/dashboard/leads/new">
-            <Plus className="h-4 w-4" />
-            Add Lead
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/export/leads"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
           </a>
-        </Button>
+          <Link href="/dashboard/leads/new">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Add Lead
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Suspense fallback={<div className="h-10" />}>
@@ -49,13 +58,19 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
 
       <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
         {leads.length > 0 ? (
-          <LeadTable leads={leads} />
+          <>
+            <LeadTable leads={leads} />
+            <PaginationBar currentPage={page} totalPages={totalPages} totalItems={total} />
+          </>
         ) : (
-          <p className="py-12 text-center text-sm text-zinc-500">
-            {activeStatus
-              ? `No ${activeStatus} leads found.`
-              : 'No leads yet. Click "Add Lead" to create one.'}
-          </p>
+          <div className="py-12 text-center">
+            <Users className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
+            <p className="text-sm text-zinc-500">
+              {activeStatus
+                ? `No ${activeStatus} leads found.`
+                : 'No leads yet. Add your first lead to get started.'}
+            </p>
+          </div>
         )}
       </div>
 

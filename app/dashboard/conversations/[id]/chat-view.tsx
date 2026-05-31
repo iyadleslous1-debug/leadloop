@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Send, Bot, User } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Send, Bot, User, Check, X } from "lucide-react";
 import type { Message } from "@/types/conversation";
 
 interface ChatViewProps {
@@ -24,12 +23,44 @@ export function ChatView({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [aiOn, setAiOn] = useState(aiActive);
-  const router = useRouter();
+  const [pendingSuggestion, setPendingSuggestion] = useState<string | null>(null);
+  const [pendingMedia, setPendingMedia] = useState<string[]>([]);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, pendingSuggestion]);
+
+  const checkSuggestion = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/conversations?id=${conversationId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.pending_suggestion) {
+          setPendingSuggestion(data.pending_suggestion);
+          setPendingMedia(data.pending_suggestion_media || []);
+        } else {
+          setPendingSuggestion(null);
+          setPendingMedia([]);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (aiOn) {
+      checkSuggestion();
+      pollRef.current = setInterval(checkSuggestion, 3000);
+      return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    }
+  }, [aiOn, checkSuggestion]);
 
   async function handleToggleAI() {
     const newState = !aiOn;
     setAiOn(newState);
-
     await fetch("/api/conversations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -40,34 +71,79 @@ export function ChatView({
   async function handleSend() {
     if (!input.trim() || sending) return;
     setSending(true);
+    const text = input.trim();
+    setInput("");
+
+    const userMsg: Message = {
+      id: "temp-" + Date.now(),
+      conversation_id: conversationId,
+      role: "user",
+      content: text,
+      created_at: new Date().toISOString(),
+      metadata: {},
+    };
+    setMessages((prev) => [...prev, userMsg]);
 
     try {
       if (aiOn) {
-        // AI is handling — run through pipeline to simulate incoming lead message
-        await fetch("/api/whatsapp/simulate", {
+        const res = await fetch("/api/whatsapp/simulate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone,
-            name: contactName,
-            message: input.trim(),
-          }),
+          body: JSON.stringify({ phone, name: contactName, message: text }),
         });
+        const data = await res.json();
+        if (data.reply) {
+          setPendingSuggestion(data.reply);
+        }
+        checkSuggestion();
       } else {
-        // Owner is handling — send directly via Twilio
-        await fetch("/api/messages/send", {
+        const res = await fetch("/api/messages/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId,
-            text: input.trim(),
-          }),
+          body: JSON.stringify({ conversationId, text }),
         });
+        if (res.ok) {
+          const sentMsg: Message = {
+            id: "temp-sent-" + Date.now(),
+            conversation_id: conversationId,
+            role: "assistant",
+            content: text,
+            created_at: new Date().toISOString(),
+            metadata: {},
+          };
+          setMessages((prev) => [...prev, sentMsg]);
+        }
       }
-      window.location.reload();
+    } catch {
+      // keep user message visible
     } finally {
       setSending(false);
     }
+  }
+
+  async function handleSuggestion(action: "send" | "discard") {
+    const text = pendingSuggestion;
+    const media = pendingMedia;
+    setPendingSuggestion(null);
+    setPendingMedia([]);
+
+    if (action === "send" && text) {
+      const aiMsg: Message = {
+        id: "temp-ai-" + Date.now(),
+        conversation_id: conversationId,
+        role: "assistant",
+        content: text,
+        created_at: new Date().toISOString(),
+        metadata: { media },
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    }
+
+    await fetch("/api/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, action }),
+    });
   }
 
   return (
@@ -119,7 +195,54 @@ export function ChatView({
             </div>
           </div>
         ))}
-        <div ref={(el) => el?.scrollIntoView({ behavior: "smooth" })} />
+
+        {/* Pending suggestion card */}
+        {pendingSuggestion && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-emerald-400">
+                AI Suggestion
+              </p>
+              {pendingMedia.length > 0 && (
+                <div className="mb-3 flex gap-2 overflow-x-auto">
+                  {pendingMedia.map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Property photo ${i + 1}`}
+                      className="h-20 w-28 flex-shrink-0 rounded-lg object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="mb-3 text-sm leading-relaxed text-zinc-200">
+                {pendingSuggestion.split("\n").map((line, i) => (
+                  <p key={i}>{line || "\u00A0"}</p>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSuggestion("send")}
+                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-600"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Send
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestion("discard")}
+                  className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Discard
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
@@ -135,7 +258,7 @@ export function ChatView({
                 handleSend();
               }
             }}
-            placeholder={aiOn ? "AI is handling replies..." : "Type a reply..."}
+            placeholder={aiOn ? "Message will be answered by AI..." : "Type a reply..."}
             disabled={aiOn}
             className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none disabled:opacity-50"
           />

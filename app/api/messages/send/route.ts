@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import twilio from "twilio";
+import { loadTwilioCreds, sendWhatsAppMessage } from "@/services/whatsapp";
+import { logError } from "@/services/logging";
 
 export async function POST(request: NextRequest) {
+  let conversationId = "unknown";
   try {
-    const { conversationId, text } = await request.json();
+    const body = await request.json();
+    conversationId = body.conversationId || conversationId;
+    const { text } = body;
     if (!conversationId || !text) {
       return NextResponse.json({ error: "conversationId and text are required" }, { status: 400 });
     }
@@ -33,20 +37,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Send via Twilio
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_WHATSAPP_FROM;
-
-    if (accountSid && authToken && from && conversation.phone) {
-      const client = twilio(accountSid, authToken);
-      await client.messages.create({
-        from: `whatsapp:${from}`,
-        to: `whatsapp:${conversation.phone}`,
-        body: text,
-      });
-    } else {
-      console.log("[Send] No Twilio creds or no phone. Would send:", text);
+    // Send via Twilio using the authenticated user's creds
+    if (conversation.phone) {
+      const creds = await loadTwilioCreds(user.id);
+      if (creds) {
+        await sendWhatsAppMessage(conversation.phone, text, user.id, conversationId);
+      } else {
+        console.log("[Send] No Twilio creds for user. Would send:", text);
+      }
     }
 
     // Store message
@@ -65,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ status: "sent" });
   } catch (err) {
-    console.error("[Send Message] Error:", err);
+    await logError("messages/send", err, { conversationId });
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

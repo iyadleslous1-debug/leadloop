@@ -12,6 +12,10 @@ export interface Conversation {
   intent_score: number | null;
   ai_active: boolean;
   status: ConversationStatus;
+  starred: boolean;
+  notes: string | null;
+  pending_suggestion: string | null;
+  pending_suggestion_media: string[] | null;
   last_message_at: string;
   created_at: string;
 }

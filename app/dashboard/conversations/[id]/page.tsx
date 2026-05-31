@@ -34,18 +34,21 @@ export default async function ConversationPage({
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-zinc-100">
-          {conv.contact_name || conv.phone}
-        </h2>
-        <p className="text-sm text-zinc-500">
-          {conv.intent && `Intent: ${conv.intent}`}
-          {conv.intent_score !== null && (
-            <span className="ml-2">
-              (Score: {(conv.intent_score * 100).toFixed(0)}%)
-            </span>
-          )}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">
+            {conv.contact_name || conv.phone}
+          </h2>
+          <p className="text-sm text-zinc-500">
+            {conv.intent && `Intent: ${conv.intent}`}
+            {conv.intent_score !== null && (
+              <span className="ml-2">
+                (Score: {(conv.intent_score * 100).toFixed(0)}%)
+              </span>
+            )}
+          </p>
+        </div>
+        <ConversationNotes conversationId={conv.id} initialNotes={conv.notes} />
       </div>
 
       <ChatView
@@ -58,3 +61,19 @@ export default async function ConversationPage({
     </div>
   );
 }
+
+function ConversationNotes({
+  conversationId,
+  initialNotes,
+}: {
+  conversationId: string;
+  initialNotes: string | null;
+}) {
+  return (
+    <div className="w-64">
+      <ClientNotes conversationId={conversationId} initialNotes={initialNotes || ""} />
+    </div>
+  );
+}
+
+import { ClientNotes } from "./client-notes";

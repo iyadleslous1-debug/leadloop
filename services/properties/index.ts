@@ -1,15 +1,31 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Property, PropertyFormData, PropertyType } from "@/types/property";
+import type { Property, PropertyFormData, PropertyType, PropertyStatus } from "@/types/property";
 
-export async function getProperties() {
+const PAGE_SIZE = 20;
+
+export async function getProperties(page = 1, filters?: { q?: string; type?: string; status?: string }) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("properties")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let query = supabase.from("properties").select("*", { count: "exact" });
+
+  if (filters?.q) {
+    query = query.or(`title.ilike.%${filters.q}%,city.ilike.%${filters.q}%,location.ilike.%${filters.q}%`);
+  }
+  if (filters?.type) {
+    query = query.eq("type", filters.type);
+  }
+  if (filters?.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (error) throw error;
-  return data as Property[];
+  return { properties: data as Property[], total: count || 0, page, totalPages: Math.ceil((count || 0) / PAGE_SIZE) };
 }
 
 export async function getPropertiesByType(type: PropertyType) {

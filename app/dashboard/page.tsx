@@ -1,18 +1,52 @@
-import { Users, Flame, Thermometer, Snowflake, Building2 } from "lucide-react";
+import { Users, Flame, Thermometer, TrendingUp, Building2, Rocket } from "lucide-react";
+import Link from "next/link";
 import { getLeads, getLeadStats } from "@/services/leads";
 import { getProperties, getPropertyStats } from "@/services/properties";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { LeadTable } from "@/components/leads/LeadTable";
+import type { Lead } from "@/types/lead";
+import type { Property } from "@/types/property";
 
 export default async function DashboardPage() {
-  const [leads, leadStats, properties, propStats] = await Promise.all([
-    getLeads(),
-    getLeadStats(),
-    getProperties(),
-    getPropertyStats(),
+  const init = await Promise.all([
+    getLeads().catch(() => ({ leads: [] as Lead[], total: 0, page: 1, totalPages: 0 })),
+    getLeadStats().catch(() => ({ total: 0, hot: 0, warm: 0, cold: 0, averageScore: 0 })),
+    getProperties().catch(() => ({ properties: [] as Property[], total: 0, page: 1, totalPages: 0 })),
+    getPropertyStats().catch(() => ({ total: 0, types: {} as Record<string, number> })),
   ]);
+  const [leadsResult, leadStats, propResult, propStats] = init;
+  const properties = propResult.properties;
+  const leads = leadsResult.leads;
   const recentLeads = leads.slice(0, 5);
   const recentProperties = properties.slice(0, 3);
+
+  const hasNoData = properties.length === 0 && leads.length === 0;
+
+  if (hasNoData) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-800">
+          <Rocket className="h-8 w-8 text-zinc-100" />
+        </div>
+        <h1 className="mb-2 text-2xl font-semibold text-zinc-100">
+          Welcome to LeadLoop!
+        </h1>
+        <p className="mb-8 max-w-sm text-sm text-zinc-500">
+          Your AI-powered WhatsApp assistant is ready. Let us get you set up in 2 minutes.
+        </p>
+        <Link
+          href="/onboarding"
+          className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-6 py-3 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-200"
+        >
+          <Rocket className="h-4 w-4" />
+          Get Started
+        </Link>
+        <p className="mt-4 text-xs text-zinc-600">
+          Connect WhatsApp and add your first properties to get started.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -36,10 +70,10 @@ export default async function DashboardPage() {
           color="bg-amber-500/10 text-amber-400"
         />
         <StatsCard
-          label="Cold"
-          value={leadStats.cold}
-          icon={Snowflake}
-          color="bg-blue-500/10 text-blue-400"
+          label="Avg Score"
+          value={leadStats.averageScore}
+          icon={TrendingUp}
+          color="bg-violet-500/10 text-violet-400"
         />
       </div>
 

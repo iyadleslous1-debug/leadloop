@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import type { Lead, LeadFormData, LeadStatus, LeadSource } from "@/types/lead";
+import type { Lead, LeadFormData, LeadSource, LeadStatusConfig, ScoreBreakdown } from "@/types/lead";
+import { TagInput } from "@/components/ui/TagInput";
 
-const LEAD_STATUSES: LeadStatus[] = ["hot", "warm", "cold"];
 const LEAD_SOURCES: LeadSource[] = ["whatsapp", "website", "referral", "manual", "import"];
 
 interface LeadFormProps {
@@ -14,13 +14,30 @@ interface LeadFormProps {
 
 export function LeadForm({ lead }: LeadFormProps) {
   const router = useRouter();
+  const [customStatuses, setCustomStatuses] = useState<LeadStatusConfig[]>([]);
   const [name, setName] = useState(lead?.name || "");
   const [phone, setPhone] = useState(lead?.phone || "");
   const [email, setEmail] = useState(lead?.email || "");
-  const [status, setStatus] = useState<LeadStatus>(lead?.status || "cold");
+  const [status, setStatus] = useState(lead?.status || "cold");
   const [source, setSource] = useState<LeadSource>(lead?.source || "manual");
+  const [tags, setTags] = useState<string[]>(lead?.tags || []);
   const [notes, setNotes] = useState(lead?.notes || "");
+  const [assignedTo, setAssignedTo] = useState(lead?.assigned_to || "");
+  const [reminderAt, setReminderAt] = useState(lead?.reminder_at?.slice(0, 16) || "");
+  const [sequenceId, setSequenceId] = useState(lead?.sequence_id || "");
+  const [sequences, setSequences] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/leads/statuses")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setCustomStatuses(data); })
+      .catch(() => {});
+    fetch("/api/sequences")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { if (Array.isArray(data)) setSequences(data); })
+      .catch(() => {});
+  }, []);
 
   const isEditing = !!lead;
 
@@ -40,7 +57,11 @@ export function LeadForm({ lead }: LeadFormProps) {
         email: email.trim() || undefined,
         status,
         source,
+        tags: tags.length > 0 ? tags : undefined,
         notes: notes.trim() || undefined,
+        assigned_to: assignedTo.trim() || undefined,
+        reminder_at: reminderAt ? new Date(reminderAt).toISOString() : undefined,
+        sequence_id: sequenceId || undefined,
       };
 
       const url = isEditing ? `/api/leads/${lead.id}` : "/api/leads";
@@ -90,12 +111,15 @@ export function LeadForm({ lead }: LeadFormProps) {
           <select
             id="status"
             value={status}
-            onChange={(e) => setStatus(e.target.value as LeadStatus)}
+            onChange={(e) => setStatus(e.target.value)}
             className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
           >
-            {LEAD_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+            <option value="hot">Hot</option>
+            <option value="warm">Warm</option>
+            <option value="cold">Cold</option>
+            {customStatuses.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
               </option>
             ))}
           </select>
@@ -129,6 +153,53 @@ export function LeadForm({ lead }: LeadFormProps) {
           />
         </div>
       </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="assigned_to" className="block text-sm font-medium text-zinc-300">
+            Assigned To
+          </label>
+          <input
+            id="assigned_to"
+            type="text"
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+            placeholder="Agent name or email"
+          />
+        </div>
+        <div>
+          <label htmlFor="reminder_at" className="block text-sm font-medium text-zinc-300">
+            Reminder
+          </label>
+          <input
+            id="reminder_at"
+            type="datetime-local"
+            value={reminderAt}
+            onChange={(e) => setReminderAt(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+          />
+        </div>
+        <div>
+          <label htmlFor="sequence_id" className="block text-sm font-medium text-zinc-300">
+            Follow-up Sequence
+          </label>
+          <select
+            id="sequence_id"
+            value={sequenceId}
+            onChange={(e) => setSequenceId(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+          >
+            <option value="">Default (Day 1, 3, 7, Weeks 2-8)</option>
+            {sequences.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-300">Tags</label>
+        <TagInput tags={tags} onChange={setTags} placeholder="e.g. vip, budget-friendly, urgent" />
+      </div>
       <div>
         <label htmlFor="source" className="block text-sm font-medium text-zinc-300">
           Source
@@ -159,6 +230,43 @@ export function LeadForm({ lead }: LeadFormProps) {
           placeholder="Lead preferences, follow-up notes..."
         />
       </div>
+
+      {isEditing && lead?.score !== null && lead?.score !== undefined && (
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+          <h4 className="mb-3 text-sm font-semibold text-zinc-300">Lead Score Breakdown</h4>
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-2xl font-bold text-zinc-100">{lead.score}</span>
+            <span className="text-xs text-zinc-500">/ 100</span>
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-800">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  (lead.score || 0) >= 67 ? "bg-red-500" : (lead.score || 0) >= 34 ? "bg-amber-500" : "bg-blue-500"
+                }`}
+                style={{ width: `${lead.score || 0}%` }}
+              />
+            </div>
+          </div>
+          {lead.score_breakdown && (
+            <div className="grid grid-cols-5 gap-2 text-center text-xs">
+              {[
+                { label: "Intent", value: lead.score_breakdown.intent, max: 30 },
+                { label: "Recency", value: lead.score_breakdown.recency, max: 25 },
+                { label: "Engagement", value: lead.score_breakdown.engagement, max: 20 },
+                { label: "Property", value: lead.score_breakdown.propertyMatch, max: 15 },
+                { label: "Follow-up", value: lead.score_breakdown.followUp, max: 10 },
+              ].map((item) => (
+                <div key={item.label}>
+                  <div className="mb-1 text-zinc-500">{item.label}</div>
+                  <div className="font-medium text-zinc-100">
+                    {item.value}/{item.max}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <button
           type="button"

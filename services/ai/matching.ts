@@ -12,24 +12,27 @@ interface MatchResult {
 export async function findBestMatches(
   intent: IntentResult,
   limit = 3,
-  supabase?: SupabaseClient
+  supabase?: SupabaseClient,
+  ownerId?: string,
+  excludeIds?: string[]
 ): Promise<MatchResult[]> {
   const client = supabase || createAdminClient();
   let query = client.from("properties").select("*");
+
+  if (ownerId) {
+    query = query.eq("owner_id", ownerId);
+  }
 
   if (intent.propertyType) {
     query = query.eq("type", intent.propertyType);
   }
 
-  if (intent.budget?.max) {
-    query = query.lte("price", intent.budget.max);
-  }
-  if (intent.budget?.min) {
-    query = query.gte("price", intent.budget.min);
-  }
-
   if (intent.location) {
     query = query.or(`city.ilike.%${intent.location}%,location.ilike.%${intent.location}%`);
+  }
+
+  if (excludeIds && excludeIds.length > 0) {
+    query = query.not("id", "in", `(${excludeIds.map((id) => `"${id}"`).join(",")})`);
   }
 
   const { data, error } = await query.order("created_at", { ascending: false }).limit(20);
@@ -75,22 +78,4 @@ function scoreMatch(property: Property, intent: IntentResult): MatchResult {
   return { property, score: Math.round(score), reasons };
 }
 
-export function generateRecommendationText(matches: MatchResult[], name: string): string {
-  if (matches.length === 0) {
-    return `Hi ${name || "there"}! Thanks for your interest. I couldn't find exact matches right now. Could you tell me more about what you're looking for? (budget, location, property type)`;
-  }
 
-  const lines = matches.map(
-    (m, i) =>
-      `${i + 1}. *${m.property.title}* — ${m.property.city}\n` +
-      `   💰 $${m.property.price.toLocaleString()}\n` +
-      `   📍 ${m.property.location}\n` +
-      `   🏠 ${m.property.type}`
-  );
-
-  return (
-    `Hi ${name || "there"}! Here are the best properties for you:\n\n` +
-    lines.join("\n\n") +
-    `\n\nWould you like more details on any of these? I can also arrange a visit! 😊`
-  );
-}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import twilio from "twilio";
+import { loadTwilioCreds, sendWhatsAppMessage } from "@/services/whatsapp";
+import { logError } from "@/services/logging";
 
 export async function GET() {
   try {
@@ -9,7 +10,7 @@ export async function GET() {
 
     const { data: followUps, error } = await admin
       .from("follow_ups")
-      .select("*, lead:leads(id, name, phone)")
+      .select("*, lead:leads(id, name, phone, user_id, follow_ups_paused)")
       .eq("completed", false)
       .lte("scheduled_at", now)
       .order("scheduled_at", { ascending: true });
@@ -23,17 +24,18 @@ export async function GET() {
       return NextResponse.json({ status: "ok", sent: 0 });
     }
 
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_WHATSAPP_FROM;
-
     let sent = 0;
     for (const fu of followUps) {
       try {
-        const lead = fu.lead as { id: string; name: string; phone: string } | null;
+        const lead = fu.lead as { id: string; name: string; phone: string; user_id: string; follow_ups_paused: boolean } | null;
         if (!lead?.phone) {
           console.log("[Cron] No phone for follow-up", fu.id);
           await admin.from("follow_ups").update({ completed: true }).eq("id", fu.id);
+          continue;
+        }
+
+        if (lead.follow_ups_paused) {
+          console.log("[Cron] Follow-ups paused for lead", lead.id, "- skipping");
           continue;
         }
 
@@ -44,17 +46,13 @@ export async function GET() {
           .eq("lead_id", lead.id)
           .maybeSingle();
 
-        // Send via Twilio
-        if (accountSid && authToken && from) {
-          const client = twilio(accountSid, authToken);
-          const twilioMsg = await client.messages.create({
-            from: `whatsapp:${from}`,
-            to: `whatsapp:${lead.phone}`,
-            body: fu.message,
-          });
-          console.log("[Cron] Sent follow-up", fu.id, "SID:", twilioMsg.sid);
+        // Send via Twilio using lead owner's creds
+        const creds = await loadTwilioCreds(lead.user_id);
+        if (creds) {
+          await sendWhatsAppMessage(lead.phone, fu.message, lead.user_id, conv?.id);
+          console.log("[Cron] Sent follow-up", fu.id);
         } else {
-          console.log("[Cron] No Twilio creds, would send:", fu.message);
+          console.log("[Cron] No Twilio creds for user", lead.user_id, "would send:", fu.message);
         }
 
         // Store message in conversation if we have it
@@ -71,13 +69,13 @@ export async function GET() {
         await admin.from("follow_ups").update({ completed: true }).eq("id", fu.id);
         sent++;
       } catch (err) {
-        console.error("[Cron] Error processing follow-up", fu.id, err);
+        await logError("cron/follow-ups-process", err, { followUpId: fu.id });
       }
     }
 
     return NextResponse.json({ status: "ok", sent, total: followUps.length });
   } catch (err) {
-    console.error("[Cron] Error:", err);
+    await logError("cron/follow-ups", err);
     return NextResponse.json({ status: "error", error: String(err) }, { status: 500 });
   }
 }

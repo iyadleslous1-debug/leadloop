@@ -1,6 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 export function SimulateMessageForm() {
+  const router = useRouter();
+
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
       <h3 className="mb-3 text-sm font-semibold text-zinc-100">Simulate WhatsApp Message</h3>
@@ -24,7 +28,7 @@ export function SimulateMessageForm() {
               }),
             });
             form.reset();
-            window.location.reload();
+            router.refresh();
           } catch {
             btn.disabled = false;
             btn.textContent = "Send";

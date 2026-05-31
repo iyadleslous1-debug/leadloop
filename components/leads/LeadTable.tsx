@@ -31,8 +31,10 @@ export function LeadTable({ leads }: LeadTableProps) {
             <th className="pb-3 pr-4 font-medium">Name</th>
             <th className="pb-3 pr-4 font-medium">Contact</th>
             <th className="pb-3 pr-4 font-medium">Property</th>
+            <th className="pb-3 pr-4 font-medium">Score</th>
             <th className="pb-3 pr-4 font-medium">Status</th>
             <th className="pb-3 pr-4 font-medium">Source</th>
+            <th className="pb-3 pr-4 font-medium">Tags</th>
             <th className="pb-3 pr-4 font-medium">Last Contact</th>
             <th className="pb-3 font-medium">Actions</th>
           </tr>
@@ -60,9 +62,32 @@ export function LeadTable({ leads }: LeadTableProps) {
                 )}
               </td>
               <td className="py-3 pr-4">
-                <LeadStatusBadge status={lead.status} />
+                <span
+                  className={`inline-flex h-6 w-8 items-center justify-center rounded text-xs font-bold tabular-nums ${
+                    (lead.score || 0) >= 67
+                      ? "bg-red-500/10 text-red-400"
+                      : (lead.score || 0) >= 34
+                        ? "bg-amber-500/10 text-amber-400"
+                        : "bg-blue-500/10 text-blue-400"
+                  }`}
+                >
+                  {lead.score ?? "—"}
+                </span>
               </td>
-              <td className="py-3 pr-4 text-zinc-400">{lead.source}</td>
+              <td className="py-3 pr-4">
+                <LeadStatusBadge status={lead.status} score={lead.score} />
+              </td>
+              <td className="py-3 pr-4 text-zinc-400 capitalize">{lead.source}</td>
+              <td className="py-3 pr-4">
+                <div className="flex flex-wrap gap-1">
+                  {(lead.tags || []).slice(0, 3).map((t) => (
+                    <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{t}</span>
+                  ))}
+                  {(lead.tags || []).length > 3 && (
+                    <span className="text-[10px] text-zinc-600">+{lead.tags.length - 3}</span>
+                  )}
+                </div>
+              </td>
               <td className="py-3 pr-4 text-zinc-400">
                 {lead.last_contact_at
                   ? new Date(lead.last_contact_at).toLocaleDateString()

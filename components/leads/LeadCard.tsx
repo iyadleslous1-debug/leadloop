@@ -10,7 +10,7 @@ export function LeadCard({ lead }: LeadCardProps) {
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
       <div className="flex items-center justify-between">
         <h3 className="font-medium text-zinc-100">{lead.name}</h3>
-        <LeadStatusBadge status={lead.status} />
+        <LeadStatusBadge status={lead.status} score={lead.score} />
       </div>
       <div className="mt-2 space-y-1 text-sm text-zinc-400">
         {lead.email && <p>{lead.email}</p>}

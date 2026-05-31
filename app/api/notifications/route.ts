@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getNotifications, markAsRead, markAllAsRead, getUnreadCount } from "@/services/notifications";
+import { logError } from "@/services/logging";
 
 export async function GET() {
   try {
@@ -10,6 +11,7 @@ export async function GET() {
 
     return NextResponse.json({ notifications, unread });
   } catch (err) {
+    await logError("notifications/get", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
@@ -29,6 +31,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    await logError("notifications/patch", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
