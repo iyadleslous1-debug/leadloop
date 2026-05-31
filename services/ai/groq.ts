@@ -85,6 +85,16 @@ const LANGUAGE_LABELS: Record<BuyerLanguage, string> = {
   unknown: "English",
 };
 
+function hasArabicScript(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
+}
+
+function replyMatchesLanguage(reply: string, lang: BuyerLanguage): boolean {
+  if (lang === "ar" || lang === "darija") return hasArabicScript(reply);
+  if (lang === "fr") return /[éèêëàâùûüôöîïç]/i.test(reply) || !hasArabicScript(reply);
+  return true;
+}
+
 export async function generateAIReply(
   buyerName: string,
   buyerMessage: string,
@@ -114,16 +124,15 @@ Buyer: ${buyerName}
 Their message: "${buyerMessage}"
 Detected language: ${langName}${historyBlock}
 
-Rules:
-- Reply in ${langName} — NOT English
+CRITICAL RULE: You MUST reply entirely in ${langName}. Use Arabic script (العربية) if the buyer wrote in Arabic. Use Latin script only for French or English. Do NOT mix languages. Do NOT transliterate Arabic into Latin letters.
 - Be warm and friendly
-- DO NOT suggest or invent any specific properties, prices, or listings
+- DO NOT suggest or suggest any specific properties, prices, or listings
 - Ask 1-2 simple questions to understand what they need (budget, city, property type)
 - Keep it under 80 words
 - Plain text only, no markdown`;
 
     const reply = await chatCompletion(prompt, systemPrompt, onUsage);
-    if (reply) return reply;
+    if (reply && replyMatchesLanguage(reply, lang)) return reply;
     const fallbacks: Record<string, string> = {
       ar: `مرحباً ${buyerName || "هناك"}! شكراً لتواصلك. هل يمكنك توضيح ما تبحث عنه بالضبط؟ (الميزانية، المدينة، نوع العقار)`,
       fr: `Bonjour ${buyerName || "là"}! Merci de nous contacter. Pourriez-vous préciser ce que vous recherchez ? (budget, ville, type de bien)`,
@@ -143,7 +152,7 @@ What they want: ${intentSummary}
 Detected language: ${langName}${historyBlock}${prefsBlock}
 
 CRITICAL RULES:
-- Reply in ${langName} — NOT English. Match the buyer's language exactly (Arabic, French, or Darija)
+- CRITICAL: You MUST reply entirely in ${langName}. If buyer wrote in Arabic, reply in Arabic script (العربية). Do NOT transliterate Arabic into Latin letters. Do NOT reply in English.
 - Write ONLY 1-2 sentences: a warm greeting + a prompt to check out the properties below
 - Do NOT list any properties yourself — they will be shown after your message
 - Do not mention specific prices, cities, or property types
@@ -152,7 +161,7 @@ CRITICAL RULES:
 - Keep it under 60 words`;
 
     const intro = await chatCompletion(prompt, systemPrompt, onUsage);
-    if (intro) return `${intro}\n\n${propertyBlock}`;
+    if (intro && replyMatchesLanguage(intro, lang)) return `${intro}\n\n${propertyBlock}`;
     const fallbacks: Record<string, string> = {
       ar: `مرحباً ${buyerName || "هناك"}! إليك أفضل العقارات المناسبة لك:\n\n${propertyBlock}\n\nهل ترغب في معرفة المزيد أو حجز موعد للزيارة؟`,
       fr: `Bonjour ${buyerName || "là"}! Voici les meilleures propriétés pour vous:\n\n${propertyBlock}\n\nSouhaitez-vous plus de détails ou planifier une visite ?`,
@@ -168,8 +177,7 @@ Their message: "${buyerMessage}"
 What they want: ${intentSummary}
 Detected language: ${langName}${historyBlock}${prefsBlock}
 
-Rules:
-- Reply in ${langName} — NOT English
+CRITICAL RULE: You MUST reply entirely in ${langName}. If buyer wrote in Arabic, reply in Arabic script (العربية). Do NOT transliterate Arabic into Latin letters. Do NOT reply in English.
 - Be warm and helpful
 - If buyer has existing preferences, reference them and ask if they changed
 - Ask what specific city, budget range, or property type they're looking for
@@ -180,7 +188,7 @@ Rules:
 - Plain text only, no markdown`;
 
   const reply = await chatCompletion(prompt, systemPrompt, onUsage);
-  if (reply) return reply;
+  if (reply && replyMatchesLanguage(reply, lang)) return reply;
   const fallbacks: Record<string, string> = {
     ar: `مرحباً ${buyerName || "هناك"}! شكراً لاهتمامك. هل يمكنك إخباري بالمزيد عن ما تبحث عنه؟ (الميزانية، المدينة، نوع العقار)`,
     fr: `Bonjour ${buyerName || "là"}! Merci de votre intérêt. Pouvez-vous me dire ce que vous recherchez exactement ? (budget, ville, type de bien)`,
