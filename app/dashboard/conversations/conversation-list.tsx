@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Search, MessageCircle, Bot, Star } from "lucide-react";
 import Link from "next/link";
+import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { ConversationWithLastMessage } from "@/services/conversations";
 
 const statuses = [
@@ -20,6 +21,61 @@ function getStatusColor(status: string) {
   return "text-zinc-500";
 }
 
+function StarButton({ conv, router }: { conv: ConversationWithLastMessage; router: AppRouterInstance }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fetch("/api/conversations", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: conv.id, starred: !conv.starred }),
+        }).then(() => router.refresh());
+      }}
+      className="shrink-0"
+    >
+      <Star
+        className={`h-4 w-4 transition-colors ${
+          conv.starred ? "fill-amber-400 text-amber-400" : "text-zinc-700 opacity-0 group-hover:opacity-100"
+        }`}
+      />
+    </button>
+  );
+}
+
+function ConvIcon({ conv }: { conv: ConversationWithLastMessage }) {
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800">
+      {conv.ai_active ? (
+        <Bot className="h-4 w-4 text-emerald-400" />
+      ) : (
+        <MessageCircle className="h-4 w-4 text-zinc-400" />
+      )}
+    </div>
+  );
+}
+
+function ConvInfo({ conv }: { conv: ConversationWithLastMessage }) {
+  return (
+    <div className="min-w-0">
+      <p className="flex items-center gap-2 text-sm font-medium text-zinc-100">
+        {conv.contact_name || conv.phone}
+        {conv.ai_active && (
+          <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">AI</span>
+        )}
+        {conv.escalated && (
+          <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-400">Escalated</span>
+        )}
+      </p>
+      <p className="truncate text-xs text-zinc-500">
+        {conv.lastMessage || conv.intent || "No messages yet"}
+      </p>
+    </div>
+  );
+}
+
 interface ConversationListProps {
   conversations: ConversationWithLastMessage[];
 }
@@ -28,6 +84,7 @@ export function ConversationList({ conversations }: ConversationListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchValue, setSearchValue] = useState(searchParams.get("q") || "");
+  const hasSelected = searchParams.has("selected");
 
   const currentStatus = searchParams.get("status") || "all";
   const currentQuery = searchParams.get("q") || "";
@@ -90,52 +147,31 @@ export function ConversationList({ conversations }: ConversationListProps) {
         {conversations.length > 0 ? (
           <div className="space-y-1">
             {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className="group flex items-center justify-between rounded-lg border border-zinc-800/50 px-4 py-3 transition-colors hover:bg-zinc-800/50"
-              >
-                <Link href={`/dashboard/conversations/${conv.id}`} className="flex items-center gap-3 min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      fetch("/api/conversations", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id: conv.id, starred: !conv.starred }),
-                      }).then(() => router.refresh());
-                    }}
-                    className="shrink-0"
-                  >
-                    <Star
-                      className={`h-4 w-4 transition-colors ${
-                        conv.starred ? "fill-amber-400 text-amber-400" : "text-zinc-700 opacity-0 group-hover:opacity-100"
-                      }`}
-                    />
-                  </button>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800">
-                    {conv.ai_active ? (
-                      <Bot className="h-4 w-4 text-emerald-400" />
-                    ) : (
-                      <MessageCircle className="h-4 w-4 text-zinc-400" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 text-sm font-medium text-zinc-100">
-                      {conv.contact_name || conv.phone}
-                      {conv.ai_active && (
-                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
-                          AI
-                        </span>
-                      )}
-                    </p>
-                    <p className="truncate text-xs text-zinc-500">
-                      {conv.lastMessage || conv.intent || "No messages yet"}
-                    </p>
-                  </div>
-                </Link>
-                <div className="flex items-center gap-3 shrink-0">
+                <div
+                  key={conv.id}
+                  className="group flex items-center justify-between rounded-lg border border-zinc-800/50 px-4 py-3 transition-colors hover:bg-zinc-800/50"
+                >
+                  {hasSelected ? (
+                    <button
+                      onClick={() => {
+                        const p = new URLSearchParams(searchParams.toString());
+                        p.set("selected", conv.id);
+                        router.push(`/dashboard/conversations?${p.toString()}`);
+                      }}
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                    >
+                      <StarButton conv={conv} router={router} />
+                      <ConvIcon conv={conv} />
+                      <ConvInfo conv={conv} />
+                    </button>
+                  ) : (
+                    <Link href={`/dashboard/conversations/${conv.id}`} className="flex items-center gap-3 min-w-0 flex-1">
+                      <StarButton conv={conv} router={router} />
+                      <ConvIcon conv={conv} />
+                      <ConvInfo conv={conv} />
+                    </Link>
+                  )}
+                  <div className="flex items-center gap-3 shrink-0">
                   {conv.intent_score !== null && (
                     <span className={`text-xs font-medium ${getStatusColor(
                       conv.intent_score >= 0.6 ? "hot" : conv.intent_score >= 0.3 ? "warm" : "cold"

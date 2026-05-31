@@ -2,13 +2,15 @@ import twilio from "twilio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectIntent } from "@/services/ai/intent";
 import { findBestMatches } from "@/services/ai/matching";
-import { generateAIReply, detectIntentWithAI } from "@/services/ai/groq";
+import { generateAIReply, detectIntentWithAI, type AIUsage } from "@/services/ai/groq";
+import { logAIUsage, estimateCost } from "@/services/ai/usage";
 import { createNotification } from "@/services/notifications";
 import { scheduleDefaultFollowUps } from "@/services/follow-ups";
 import { createBooking, detectBookingIntent } from "@/services/bookings";
 import { calculateLeadScore, scoreToStatus } from "@/services/leads/scoring";
 import { extractPreferences } from "@/services/leads/preferences";
 import { enqueueFailedDelivery } from "@/lib/delivery-queue";
+import type { Property } from "@/types/property";
 
 interface TwilioCreds {
   accountSid: string;
@@ -209,7 +211,11 @@ export async function processIncomingMessage(
 
   // Step 3: Run intent detection (AI first, fallback to rule-based)
   console.log("\n[STEP 3] Detecting intent...");
-  const aiIntent = await detectIntentWithAI(text);
+
+  const totalUsage: AIUsage[] = [];
+  const trackUsage = (usage: AIUsage) => { totalUsage.push(usage); };
+
+  const aiIntent = await detectIntentWithAI(text, trackUsage);
   let intent;
   if (aiIntent) {
     console.log("[STEP 3] Using AI intent detection");
@@ -224,6 +230,8 @@ export async function processIncomingMessage(
   console.log("[STEP 3] Location:", intent.location || "none");
   console.log("[STEP 3] Property type:", intent.propertyType || "none");
 
+  const CONFIDENCE_THRESHOLD = 0.3;
+
   // Step 4: Run property matching (exclude already-viewed properties)
   console.log("\n[STEP 4] Matching properties...");
   let viewedPropertyIds: string[] = [];
@@ -237,21 +245,30 @@ export async function processIncomingMessage(
       viewedPropertyIds = existingLead.viewed_properties as string[];
     }
   }
-  const matches = await findBestMatches(intent, 3, admin, undefined, viewedPropertyIds);
-  console.log("[STEP 4] Matches found:", matches.length);
-  matches.forEach((m, i) => {
-    console.log(`  ${i + 1}. ${m.property.title} ($${m.property.price.toLocaleString()}) - ${m.property.city}`);
-  });
+
+  let matches: { property: Property; score: number; reasons: string[] }[] = [];
+  let matchedPropertyData: { title: string; price: number; city: string; location: string; type: string }[] = [];
+  let lowConfidence = intent.score < CONFIDENCE_THRESHOLD;
+
+  if (!lowConfidence) {
+    matches = await findBestMatches(intent, 3, admin, undefined, viewedPropertyIds);
+    console.log("[STEP 4] Matches found:", matches.length);
+    matches.forEach((m, i) => {
+      console.log(`  ${i + 1}. ${m.property.title} ($${m.property.price.toLocaleString()}) - ${m.property.city}`);
+    });
+    matchedPropertyData = matches.map((m) => ({
+      title: m.property.title,
+      price: m.property.price,
+      city: m.property.city,
+      location: m.property.location,
+      type: m.property.type,
+    }));
+  } else {
+    console.log("[STEP 4] Skipped (low confidence)");
+  }
 
   // Step 5: Generate AI reply with memory + language
   console.log("\n[STEP 5] Generating AI reply...");
-  const matchedPropertyData = matches.map((m) => ({
-    title: m.property.title,
-    price: m.property.price,
-    city: m.property.city,
-    location: m.property.location,
-    type: m.property.type,
-  }));
 
   // Resolve owner to load custom AI instructions
   let instructionOwnerId = ownerId || conversation.owner_id;
@@ -320,9 +337,18 @@ export async function processIncomingMessage(
     intent.language,
     history,
     systemPrompt,
-    buyerPrefs
+    buyerPrefs,
+    lowConfidence,
+    trackUsage
   );
   console.log("[STEP 5] Reply:", reply);
+
+  // Log AI usage for cost tracking
+  for (const usage of totalUsage) {
+    logAIUsage(usage, conversation.id, ownerId || conversation.owner_id || undefined).catch(() => {});
+  }
+  const totalCost = totalUsage.reduce((sum, u) => sum + estimateCost(u), 0);
+  console.log(`[STEP 5] AI usage: ${totalUsage.length} calls, total cost: $${totalCost.toFixed(6)}`);
 
   // Step 6: Calculate holistic lead score (0-100)
   console.log("\n[STEP 6] Calculating holistic lead score...");

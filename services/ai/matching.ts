@@ -27,6 +27,9 @@ export async function findBestMatches(
     query = query.eq("type", intent.propertyType);
   }
 
+  // Only show available properties (exclude sold/rented)
+  query = query.in("status", ["for_sale", "for_rent"]);
+
   if (intent.location) {
     query = query.or(`city.ilike.%${intent.location}%,location.ilike.%${intent.location}%`);
   }

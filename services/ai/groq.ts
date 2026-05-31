@@ -7,7 +7,18 @@ function getApiKey() {
   return process.env.GROQ_API_KEY;
 }
 
-async function chatCompletion(prompt: string, systemPrompt?: string): Promise<string | null> {
+export interface AIUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  model: string;
+}
+
+export async function chatCompletion(
+  prompt: string,
+  systemPrompt?: string,
+  onUsage?: (usage: AIUsage) => void
+): Promise<string | null> {
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
@@ -39,7 +50,18 @@ async function chatCompletion(prompt: string, systemPrompt?: string): Promise<st
     }
 
     const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || null;
+    const text = data.choices?.[0]?.message?.content?.trim() || null;
+
+    if (data.usage && onUsage) {
+      onUsage({
+        prompt_tokens: data.usage.prompt_tokens || 0,
+        completion_tokens: data.usage.completion_tokens || 0,
+        total_tokens: data.usage.total_tokens || 0,
+        model: GROQ_MODEL,
+      });
+    }
+
+    return text;
   } catch (err) {
     console.error("[Groq] Request error:", err);
     return null;
@@ -71,9 +93,10 @@ export async function generateAIReply(
   language?: BuyerLanguage,
   conversationHistory?: { role: string; content: string }[],
   systemPrompt?: string,
-  buyerPreferences?: string
+  buyerPreferences?: string,
+  lowConfidence?: boolean,
+  onUsage?: (usage: AIUsage) => void
 ): Promise<string> {
-  const propertyBlock = formatPropertyList(matchedProperties);
   const lang = language || "en";
   const langName = LANGUAGE_LABELS[lang];
 
@@ -82,6 +105,34 @@ export async function generateAIReply(
     : "";
 
   const prefsBlock = buyerPreferences ? `\nBuyer preferences: ${buyerPreferences}` : "";
+
+  // Low confidence: ask clarifying questions, no property suggestions
+  if (lowConfidence) {
+    const prompt = `You are a WhatsApp real estate assistant for an Algerian agency. The buyer's message is too vague to match to any properties.
+
+Buyer: ${buyerName}
+Their message: "${buyerMessage}"
+Detected language: ${langName}${historyBlock}
+
+Rules:
+- Reply in ${langName} — NOT English
+- Be warm and friendly
+- DO NOT suggest or invent any specific properties, prices, or listings
+- Ask 1-2 simple questions to understand what they need (budget, city, property type)
+- Keep it under 80 words
+- Plain text only, no markdown`;
+
+    const reply = await chatCompletion(prompt, systemPrompt, onUsage);
+    if (reply) return reply;
+    const fallbacks: Record<string, string> = {
+      ar: `مرحباً ${buyerName || "هناك"}! شكراً لتواصلك. هل يمكنك توضيح ما تبحث عنه بالضبط؟ (الميزانية، المدينة، نوع العقار)`,
+      fr: `Bonjour ${buyerName || "là"}! Merci de nous contacter. Pourriez-vous préciser ce que vous recherchez ? (budget, ville, type de bien)`,
+      darija: `Salam ${buyerName || "hna"}! Shukran bquisstina. Wash t9dar tgoli chno raki t9essadi bitala? (budget, mdina, no3 property)`,
+    };
+    return fallbacks[lang] || `Hi ${buyerName || "there"}! Thanks for reaching out. Could you tell me what you're looking for? (budget, city, property type)`;
+  }
+
+  const propertyBlock = formatPropertyList(matchedProperties);
 
   if (propertyBlock) {
     const prompt = `You are a WhatsApp real estate assistant for an Algerian agency. Your ONLY job is to write a SHORT greeting and call-to-action in the buyer's language.
@@ -100,7 +151,7 @@ CRITICAL RULES:
 - Plain text only, no markdown
 - Keep it under 60 words`;
 
-    const intro = await chatCompletion(prompt, systemPrompt);
+    const intro = await chatCompletion(prompt, systemPrompt, onUsage);
     if (intro) return `${intro}\n\n${propertyBlock}`;
     const fallbacks: Record<string, string> = {
       ar: `مرحباً ${buyerName || "هناك"}! إليك أفضل العقارات المناسبة لك:\n\n${propertyBlock}\n\nهل ترغب في معرفة المزيد أو حجز موعد للزيارة؟`,
@@ -122,11 +173,13 @@ Rules:
 - Be warm and helpful
 - If buyer has existing preferences, reference them and ask if they changed
 - Ask what specific city, budget range, or property type they're looking for
+- CRITICAL: Do NOT invent or suggest any specific property names, prices, addresses, or listings
+- CRITICAL: Do NOT make up properties that don't exist in our database
 - End with encouragement to share more details
 - Keep it under 100 words
 - Plain text only, no markdown`;
 
-  const reply = await chatCompletion(prompt, systemPrompt);
+  const reply = await chatCompletion(prompt, systemPrompt, onUsage);
   if (reply) return reply;
   const fallbacks: Record<string, string> = {
     ar: `مرحباً ${buyerName || "هناك"}! شكراً لاهتمامك. هل يمكنك إخباري بالمزيد عن ما تبحث عنه؟ (الميزانية، المدينة، نوع العقار)`,
@@ -136,7 +189,10 @@ Rules:
   return fallbacks[lang] || `Hi ${buyerName || "there"}! Thanks for your interest. Could you tell me more about what you're looking for? (budget, location, property type)`;
 }
 
-export async function detectIntentWithAI(message: string): Promise<IntentResult | null> {
+export async function detectIntentWithAI(
+  message: string,
+  onUsage?: (usage: AIUsage) => void
+): Promise<IntentResult | null> {
   if (!getApiKey()) return null;
 
   const prompt = `Analyze this real estate buyer message and extract structured intent data.
@@ -159,7 +215,7 @@ Return ONLY a JSON object (no markdown, no code fences) with these fields:
 
 If the message is not about real estate, set score to 0 and summary to "general inquiry".`;
 
-  const text = await chatCompletion(prompt, "You are an intent extraction engine. Return only valid JSON.");
+  const text = await chatCompletion(prompt, "You are an intent extraction engine. Return only valid JSON.", onUsage);
   if (!text) return null;
 
   try {

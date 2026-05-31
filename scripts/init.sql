@@ -199,6 +199,7 @@ create table if not exists public.notifications (
   message text not null,
   type text not null default 'info' check (type in ('info', 'lead_hot', 'lead_warm', 'message', 'follow_up')),
   link text,
+  priority text not null default 'normal' check (priority in ('urgent', 'normal', 'low')),
   read boolean not null default false,
   created_at timestamptz default now()
 );
@@ -446,6 +447,18 @@ create policy "Users can delete own bookings"
 alter table public.conversations add column if not exists pending_suggestion text;
 alter table public.conversations add column if not exists pending_suggestion_media jsonb default null;
 
+-- Phase 4: Conversation summary
+alter table public.conversations add column if not exists summary text;
+
+-- Phase 4: Escalation
+alter table public.conversations add column if not exists escalated boolean not null default false;
+alter table public.conversations add column if not exists escalation_reason text;
+
+-- Phase 4: Deal tracking on leads
+alter table public.leads add column if not exists deal_value numeric;
+alter table public.leads add column if not exists close_date timestamptz;
+alter table public.leads add column if not exists deal_stage text;
+
 -- Phase 4: Video URL for properties
 alter table public.properties add column if not exists video_url text;
 
@@ -485,3 +498,60 @@ create index if not exists idx_bookings_user_id on public.bookings(user_id);
 create index if not exists idx_bookings_scheduled_at on public.bookings(scheduled_at);
 create index if not exists idx_lead_statuses_user_id on public.lead_statuses(user_id);
 create index if not exists idx_follow_up_sequences_user_id on public.follow_up_sequences(user_id);
+
+-- Phase 2: AI cost tracking
+create table if not exists public.ai_usage_logs (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid references public.conversations(id) on delete cascade,
+  model text not null,
+  prompt_tokens integer not null default 0,
+  completion_tokens integer not null default 0,
+  total_tokens integer not null default 0,
+  estimated_cost numeric(10,6) not null default 0,
+  user_id uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+
+alter table public.ai_usage_logs enable row level security;
+drop policy if exists "Users can view own usage" on public.ai_usage_logs;
+create policy "Users can view own usage"
+  on public.ai_usage_logs for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_ai_usage_conversation on public.ai_usage_logs(conversation_id);
+create index if not exists idx_ai_usage_created_at on public.ai_usage_logs(created_at);
+
+-- Phase 2b: Team roles
+alter table public.profiles add column if not exists role text not null default 'owner' check (role in ('owner', 'admin', 'agent', 'viewer'));
+alter table public.profiles add column if not exists agency_id uuid references public.profiles(id) on delete set null;
+
+create table if not exists public.team_invites (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references public.profiles(id) on delete cascade,
+  invited_by uuid not null references public.profiles(id) on delete cascade,
+  email text not null,
+  role text not null default 'agent' check (role in ('admin', 'agent', 'viewer')),
+  token text not null unique,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'expired')),
+  created_at timestamptz default now(),
+  expires_at timestamptz not null
+);
+
+alter table public.team_invites enable row level security;
+drop policy if exists "Agency owners/admins can view invites" on public.team_invites;
+create policy "Agency owners/admins can view invites"
+  on public.team_invites for select
+  using (auth.uid() in (
+    select id from public.profiles where agency_id = team_invites.agency_id and role in ('owner', 'admin')
+  ));
+
+drop policy if exists "Agency owners/admins can create invites" on public.team_invites;
+create policy "Agency owners/admins can create invites"
+  on public.team_invites for insert
+  with check (auth.uid() in (
+    select id from public.profiles where agency_id = team_invites.agency_id and role in ('owner', 'admin')
+  ));
+
+create index if not exists idx_team_invites_token on public.team_invites(token);
+create index if not exists idx_profiles_agency_id on public.profiles(agency_id);
+create index if not exists idx_profiles_role on public.profiles(role);

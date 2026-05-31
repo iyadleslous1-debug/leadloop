@@ -1,10 +1,11 @@
 import {
   Users, Flame, Thermometer, Snowflake,
   MessageCircle, Clock, CheckCircle2, AlertCircle,
-  BarChart3, Building2, Globe, TrendingUp, Calendar, Timer, DollarSign, Target,
+  BarChart3, Building2, Globe, TrendingUp, Calendar, Timer, DollarSign, Target, Cpu,
 } from "lucide-react";
 import { getAnalytics } from "@/services/analytics";
 import { StatsCard } from "@/components/dashboard/StatsCard";
+import { MiniBarChart } from "@/components/charts/MiniBarChart";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,13 @@ export default async function AnalyticsPage() {
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard label="AI Cost (Today)" value={`$${data.aiCost.todayCost.toFixed(6)}`} icon={Cpu} color="bg-zinc-800 text-zinc-300" />
+        <StatsCard label="AI Tokens (Today)" value={data.aiCost.todayTokens.toLocaleString()} icon={Cpu} color="bg-zinc-800 text-zinc-300" />
+        <StatsCard label="AI Cost (Total)" value={`$${data.aiCost.totalCost.toFixed(4)}`} icon={Cpu} color="bg-zinc-800 text-zinc-300" />
+        <StatsCard label="AI Tokens (Total)" value={data.aiCost.totalTokens.toLocaleString()} icon={Cpu} color="bg-zinc-800 text-zinc-300" />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-100">
@@ -56,14 +64,7 @@ export default async function AnalyticsPage() {
             Leads by City
           </h3>
           {data.leads.byCity.length > 0 ? (
-            <div className="space-y-2">
-              {data.leads.byCity.slice(0, 8).map((item) => (
-                <div key={item.city} className="flex items-center justify-between">
-                  <span className="text-sm text-zinc-300">{item.city}</span>
-                  <span className="text-sm font-medium text-zinc-100">{item.count}</span>
-                </div>
-              ))}
-            </div>
+            <MiniBarChart items={data.leads.byCity.slice(0, 8).map((c) => ({ label: c.city, value: c.count }))} />
           ) : (
             <p className="py-6 text-center text-sm text-zinc-500">No city data yet</p>
           )}
@@ -75,14 +76,7 @@ export default async function AnalyticsPage() {
             Leads by Source
           </h3>
           {data.leads.bySource.length > 0 ? (
-            <div className="space-y-2">
-              {data.leads.bySource.map((item) => (
-                <div key={item.source} className="flex items-center justify-between">
-                  <span className="text-sm capitalize text-zinc-300">{item.source}</span>
-                  <span className="text-sm font-medium text-zinc-100">{item.count}</span>
-                </div>
-              ))}
-            </div>
+            <MiniBarChart items={data.leads.bySource.map((s) => ({ label: s.source, value: s.count }))} />
           ) : (
             <p className="py-6 text-center text-sm text-zinc-500">No source data yet</p>
           )}
@@ -94,14 +88,7 @@ export default async function AnalyticsPage() {
             Leads by Property Type
           </h3>
           {data.leads.byPropertyType.length > 0 ? (
-            <div className="space-y-2">
-              {data.leads.byPropertyType.map((item) => (
-                <div key={item.type} className="flex items-center justify-between">
-                  <span className="text-sm capitalize text-zinc-300">{item.type}</span>
-                  <span className="text-sm font-medium text-zinc-100">{item.count}</span>
-                </div>
-              ))}
-            </div>
+            <MiniBarChart items={data.leads.byPropertyType.map((t) => ({ label: t.type, value: t.count }))} />
           ) : (
             <p className="py-6 text-center text-sm text-zinc-500">No property link data yet</p>
           )}

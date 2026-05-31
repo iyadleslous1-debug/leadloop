@@ -98,9 +98,14 @@ export function NotificationDropdown() {
                     {typeIcons[n.type] || "ℹ️"}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-zinc-100">
-                      {n.title}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      {n.priority === "urgent" && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                      )}
+                      <p className="truncate text-sm font-medium text-zinc-100">
+                        {n.title}
+                      </p>
+                    </div>
                     <p className="truncate text-xs text-zinc-500">{n.message}</p>
                   </div>
                 </div>

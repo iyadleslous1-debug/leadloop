@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/services/logging";
 import { logAuditEvent } from "@/services/audit";
+import { getUserRole, getAgencyMemberIds, roleGte } from "@/lib/permissions";
 
 export async function GET() {
   try {
@@ -11,9 +12,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const memberIds = await getAgencyMemberIds(user.id);
+
     const { data, error } = await supabase
       .from("leads")
       .select("*")
+      .in("user_id", memberIds)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -37,6 +41,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const role = await getUserRole(user.id);
+    if (!role || !roleGte(role, "agent")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { data, error } = await supabase
       .from("leads")
       .insert({
@@ -49,6 +58,9 @@ export async function POST(request: NextRequest) {
         tags: body.tags || null,
         assigned_to: body.assigned_to || null,
         reminder_at: body.reminder_at || null,
+        deal_value: body.deal_value || null,
+        close_date: body.close_date || null,
+        deal_stage: body.deal_stage || null,
         user_id: user.id,
       })
       .select()

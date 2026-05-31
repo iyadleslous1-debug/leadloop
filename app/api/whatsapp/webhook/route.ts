@@ -3,6 +3,7 @@ import { processIncomingMessage } from "@/services/whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/services/logging";
+import { normalizePhone } from "@/lib/phone";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored" });
     }
 
-    const phone = from.replace("whatsapp:", "");
-    const toNumber = to.replace("whatsapp:", "");
+    const phone = normalizePhone(from.replace("whatsapp:", ""));
+    const toNumber = normalizePhone(to.replace("whatsapp:", ""));
 
     // Look up which user owns the Twilio number this message was sent to
     let ownerId: string | undefined;

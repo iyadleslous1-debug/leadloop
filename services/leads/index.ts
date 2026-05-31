@@ -3,14 +3,20 @@ import type { Lead, LeadFormData, LeadStatus } from "@/types/lead";
 
 const PAGE_SIZE = 20;
 
-export async function getLeads(page = 1) {
+export async function getLeads(page = 1, q?: string) {
   const supabase = await createClient();
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from("leads")
-    .select("*, property:properties(id, title)", { count: "exact" })
+    .select("*, property:properties(id, title)", { count: "exact" });
+
+  if (q) {
+    query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
+  }
+
+  const { data, error, count } = await query
     .order("created_at", { ascending: false})
     .range(from, to);
 
@@ -18,15 +24,21 @@ export async function getLeads(page = 1) {
   return { leads: data as Lead[], total: count || 0, page, totalPages: Math.ceil((count || 0) / PAGE_SIZE) };
 }
 
-export async function getLeadsByStatus(status: LeadStatus, page = 1) {
+export async function getLeadsByStatus(status: LeadStatus, page = 1, q?: string) {
   const supabase = await createClient();
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from("leads")
     .select("*, property:properties(id, title)", { count: "exact" })
-    .eq("status", status)
+    .eq("status", status);
+
+  if (q) {
+    query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
+  }
+
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -79,6 +91,16 @@ export async function deleteLead(id: string) {
   const { error } = await supabase.from("leads").delete().eq("id", id);
 
   if (error) throw error;
+}
+
+export async function getLeadByPhone(phone: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("leads")
+    .select("name, phone, email, notes")
+    .eq("phone", phone)
+    .maybeSingle();
+  return data;
 }
 
 export async function getLeadStats() {

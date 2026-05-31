@@ -47,16 +47,23 @@ export interface AnalyticsData {
     upcoming: number;
     items: (Booking & { lead: { name: string; phone: string } | null; property: { title: string } | null })[];
   };
+  aiCost: {
+    totalTokens: number;
+    totalCost: number;
+    todayTokens: number;
+    todayCost: number;
+  };
 }
 
 export async function getAnalytics(): Promise<AnalyticsData> {
   const supabase = await createClient();
 
-  const [leadsResult, convResult, msgResult, fuResult, bookingResult, propertyResult] = await Promise.all([
+  const [leadsResult, convResult, msgResult, fuResult, costResult, bookingResult, propertyResult] = await Promise.all([
     supabase.from("leads").select("id, status, score, city, source, created_at, property_id"),
     supabase.from("conversations").select("status, last_message_at"),
     supabase.from("messages").select("id, role, conversation_id, created_at"),
     supabase.from("follow_ups").select("completed, scheduled_at"),
+    supabase.from("ai_usage_logs").select("total_tokens, estimated_cost, created_at"),
     supabase.from("bookings").select("*, lead:leads(name, phone), property:properties(title)").gte("scheduled_at", new Date().toISOString()).order("scheduled_at", { ascending: true }).limit(10),
     supabase.from("properties").select("id, price, type"),
   ]);
@@ -67,6 +74,7 @@ export async function getAnalytics(): Promise<AnalyticsData> {
   const followUps = fuResult.data || [];
   const bookings = bookingResult.data || [];
   const properties = propertyResult.data || [];
+  const costLogs = costResult.data || [];
   const propPriceMap = new Map(properties.map((p) => [p.id, p.price]));
   const propTypeMap = new Map(properties.map((p) => [p.id, p.type]));
 
@@ -139,6 +147,12 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     ? Math.round((responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) * 10) / 10
     : null;
 
+  const totalTokens = costLogs.reduce((s, c) => s + (c as any).total_tokens, 0);
+  const totalCost = costLogs.reduce((s, c) => s + parseFloat((c as any).estimated_cost || "0"), 0);
+  const todayCostLogs = costLogs.filter((c: any) => c.created_at >= todayStart);
+  const todayTokens = todayCostLogs.reduce((s, c: any) => s + c.total_tokens, 0);
+  const todayCost = todayCostLogs.reduce((s, c: any) => s + parseFloat(c.estimated_cost || "0"), 0);
+
   return {
     leads: {
       total: leads.length,
@@ -178,6 +192,12 @@ export async function getAnalytics(): Promise<AnalyticsData> {
     bookings: {
       upcoming: bookings.length,
       items: bookings as any,
+    },
+    aiCost: {
+      totalTokens,
+      totalCost: Math.round(totalCost * 1000000) / 1000000,
+      todayTokens,
+      todayCost: Math.round(todayCost * 1000000) / 1000000,
     },
   };
 }

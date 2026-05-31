@@ -24,11 +24,15 @@ const navItems = [
   { href: "/dashboard/admin", label: "Admin", icon: Shield },
 ];
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r border-zinc-800 bg-zinc-950">
+    <aside
+      className={`${
+        open ? "translate-x-0" : "-translate-x-full"
+      } fixed inset-y-0 left-0 z-40 flex w-56 flex-col border-r border-zinc-800 bg-zinc-950 transition-transform md:static md:translate-x-0`}
+    >
       <div className="flex h-14 items-center border-b border-zinc-800 px-5">
         <Link href="/dashboard" className="text-lg font-bold text-zinc-100">
           LeadLoop
@@ -44,6 +48,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-zinc-800 text-zinc-100"

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Conversation, Message } from "@/types/conversation";
 import { ChatView } from "./chat-view";
+import { ConversationSummary } from "./summary";
 
 export const dynamic = "force-dynamic";
 
@@ -51,12 +52,16 @@ export default async function ConversationPage({
         <ConversationNotes conversationId={conv.id} initialNotes={conv.notes} />
       </div>
 
+      <ConversationSummary conversationId={conv.id} initialSummary={conv.summary} />
+
       <ChatView
         conversationId={conv.id}
         phone={conv.phone}
         contactName={conv.contact_name}
         aiActive={conv.ai_active}
         initialMessages={msgs}
+        initialEscalated={conv.escalated}
+        initialEscalationReason={conv.escalation_reason}
       />
     </div>
   );
@@ -70,7 +75,7 @@ function ConversationNotes({
   initialNotes: string | null;
 }) {
   return (
-    <div className="w-64">
+    <div className="w-full sm:w-64">
       <ClientNotes conversationId={conversationId} initialNotes={initialNotes || ""} />
     </div>
   );

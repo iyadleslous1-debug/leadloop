@@ -93,7 +93,7 @@ export default function AdminPage() {
                   />
                 ))}
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
                 {leadsBreakdown.map((item) => (
                   <div key={item.label}>
                     <span className="font-medium text-zinc-100">{item.value}</span>

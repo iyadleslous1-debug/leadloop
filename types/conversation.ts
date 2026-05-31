@@ -14,6 +14,9 @@ export interface Conversation {
   status: ConversationStatus;
   starred: boolean;
   notes: string | null;
+  summary: string | null;
+  escalated: boolean;
+  escalation_reason: string | null;
   pending_suggestion: string | null;
   pending_suggestion_media: string[] | null;
   last_message_at: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Bot, User, Check, X } from "lucide-react";
+import { Send, Bot, User, Check, X, AlertTriangle } from "lucide-react";
 import type { Message } from "@/types/conversation";
 
 interface ChatViewProps {
@@ -10,6 +10,8 @@ interface ChatViewProps {
   contactName: string | null;
   aiActive: boolean;
   initialMessages: Message[];
+  initialEscalated?: boolean;
+  initialEscalationReason?: string | null;
 }
 
 export function ChatView({
@@ -18,6 +20,8 @@ export function ChatView({
   contactName,
   aiActive,
   initialMessages,
+  initialEscalated = false,
+  initialEscalationReason = null,
 }: ChatViewProps) {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState("");
@@ -25,6 +29,8 @@ export function ChatView({
   const [aiOn, setAiOn] = useState(aiActive);
   const [pendingSuggestion, setPendingSuggestion] = useState<string | null>(null);
   const [pendingMedia, setPendingMedia] = useState<string[]>([]);
+  const [escalated, setEscalated] = useState(initialEscalated || false);
+  const escalateReasonRef = useRef(initialEscalationReason || null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -146,25 +152,62 @@ export function ChatView({
     });
   }
 
+  async function handleEscalate() {
+    if (escalated) return;
+    const reason = prompt("Reason for escalation:");
+    if (!reason?.trim()) return;
+    try {
+      const res = await fetch(`/api/conversations/${conversationId}/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (res.ok) {
+        setEscalated(true);
+        escalateReasonRef.current = reason.trim();
+      }
+    } catch {}
+  }
+
   return (
     <div className="flex flex-1 flex-col rounded-xl border border-zinc-800 bg-zinc-900">
       {/* Header with toggle */}
       <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
-        <span className="text-sm text-zinc-400">
-          {aiOn ? "AI is handling this chat" : "Owner is handling this chat"}
-        </span>
-        <button
-          type="button"
-          onClick={handleToggleAI}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-            aiOn
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-          }`}
-        >
-          {aiOn ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-          {aiOn ? "AI Active" : "Take Over"}
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-zinc-400">
+            {aiOn ? "AI is handling this chat" : "Owner is handling this chat"}
+          </span>
+          {escalated && (
+            <span className="inline-flex items-center gap-1 rounded bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
+              <AlertTriangle className="h-3 w-3" />
+              Escalated{escalateReasonRef.current ? `: ${escalateReasonRef.current}` : ""}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!escalated && (
+            <button
+              type="button"
+              onClick={handleEscalate}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-900/30 px-2.5 py-1.5 text-xs font-medium text-red-400 transition-colors hover:border-red-700"
+            >
+              <AlertTriangle className="h-3 w-3" />
+              Escalate
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleAI}
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              aiOn
+                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+            }`}
+          >
+            {aiOn ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+            {aiOn ? "AI Active" : "Take Over"}
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

@@ -1,5 +1,5 @@
 export type PropertyType = "villa" | "apartment" | "house" | "land" | "commercial" | "other";
-export type PropertyStatus = "for_sale" | "for_rent" | "sold" | "rented";
+export type PropertyStatus = "for_sale" | "for_rent" | "sold" | "rented" | "archived";
 
 export interface Property {
   id: string;

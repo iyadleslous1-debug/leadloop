@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import type { Lead, LeadFormData, LeadSource, LeadStatusConfig, ScoreBreakdown } from "@/types/lead";
@@ -25,8 +25,12 @@ export function LeadForm({ lead }: LeadFormProps) {
   const [assignedTo, setAssignedTo] = useState(lead?.assigned_to || "");
   const [reminderAt, setReminderAt] = useState(lead?.reminder_at?.slice(0, 16) || "");
   const [sequenceId, setSequenceId] = useState(lead?.sequence_id || "");
+  const [dealValue, setDealValue] = useState(lead?.deal_value?.toString() || "");
+  const [closeDate, setCloseDate] = useState(lead?.close_date?.slice(0, 10) || "");
+  const [dealStage, setDealStage] = useState(lead?.deal_stage || "");
   const [sequences, setSequences] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  const autoFillRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     fetch("/api/leads/statuses")
@@ -38,6 +42,22 @@ export function LeadForm({ lead }: LeadFormProps) {
       .then((data) => { if (Array.isArray(data)) setSequences(data); })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (isEditing || !phone.trim()) return;
+    if (autoFillRef.current) clearTimeout(autoFillRef.current);
+    if (phone.trim().length < 4) return;
+    autoFillRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/leads/lookup?phone=${encodeURIComponent(phone.trim())}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.name && !name) setName(data.name);
+        if (data && data.email && !email) setEmail(data.email || "");
+        if (data && data.notes && !notes) setNotes(data.notes || "");
+      } catch {}
+    }, 600);
+  }, [phone]);
 
   const isEditing = !!lead;
 
@@ -62,6 +82,9 @@ export function LeadForm({ lead }: LeadFormProps) {
         assigned_to: assignedTo.trim() || undefined,
         reminder_at: reminderAt ? new Date(reminderAt).toISOString() : undefined,
         sequence_id: sequenceId || undefined,
+        deal_value: dealValue ? parseFloat(dealValue) : null,
+        close_date: closeDate ? new Date(closeDate).toISOString() : null,
+        deal_stage: dealStage || null,
       };
 
       const url = isEditing ? `/api/leads/${lead.id}` : "/api/leads";
@@ -199,6 +222,55 @@ export function LeadForm({ lead }: LeadFormProps) {
       <div>
         <label className="block text-sm font-medium text-zinc-300">Tags</label>
         <TagInput tags={tags} onChange={setTags} placeholder="e.g. vip, budget-friendly, urgent" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="deal_value" className="block text-sm font-medium text-zinc-300">
+            Deal Value ($)
+          </label>
+          <input
+            id="deal_value"
+            type="number"
+            min="0"
+            step="0.01"
+            value={dealValue}
+            onChange={(e) => setDealValue(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+            placeholder="250000"
+          />
+        </div>
+        <div>
+          <label htmlFor="close_date" className="block text-sm font-medium text-zinc-300">
+            Expected Close Date
+          </label>
+          <input
+            id="close_date"
+            type="date"
+            value={closeDate}
+            onChange={(e) => setCloseDate(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+          />
+        </div>
+        <div>
+          <label htmlFor="deal_stage" className="block text-sm font-medium text-zinc-300">
+            Deal Stage
+          </label>
+          <select
+            id="deal_stage"
+            value={dealStage}
+            onChange={(e) => setDealStage(e.target.value)}
+            className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+          >
+            <option value="">No stage</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="offer">Offer Made</option>
+            <option value="inspection">Inspection</option>
+            <option value="financing">Financing</option>
+            <option value="closing">Closing</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
       </div>
       <div>
         <label htmlFor="source" className="block text-sm font-medium text-zinc-300">

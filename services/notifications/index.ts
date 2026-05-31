@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { Notification, NotificationType } from "@/types/notification";
+import type { Notification, NotificationType, NotificationPriority } from "@/types/notification";
+
+const PRIORITY_ORDER: Record<string, number> = { urgent: 0, normal: 1, low: 2 };
 
 export async function getNotifications() {
   const supabase = await createClient();
@@ -11,7 +13,9 @@ export async function getNotifications() {
     .limit(50);
 
   if (error) throw error;
-  return data as Notification[];
+  const list = data as Notification[];
+  list.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
+  return list;
 }
 
 export async function getUnreadCount() {
@@ -54,12 +58,13 @@ export async function createNotification(
   title: string,
   message: string,
   type: NotificationType = "info",
-  link?: string
+  link?: string,
+  priority: NotificationPriority = "normal"
 ) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("notifications")
-    .insert({ user_id: userId, title, message, type, link: link || null })
+    .insert({ user_id: userId, title, message, type, link: link || null, priority })
     .select()
     .single();
 

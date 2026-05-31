@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logError } from "@/services/logging";
 import { logAuditEvent } from "@/services/audit";
+import { getUserRole, roleGte } from "@/lib/permissions";
 
 export async function GET(
   _request: NextRequest,
@@ -47,6 +48,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const role = await getUserRole(user.id);
+    if (!role || !roleGte(role, "admin")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { data, error } = await supabase
       .from("leads")
       .update({ ...body, updated_at: new Date().toISOString() })
@@ -78,6 +84,11 @@ export async function DELETE(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const role = await getUserRole(user.id);
+    if (!role || !roleGte(role, "admin")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { error } = await supabase.from("leads").delete().eq("id", id);

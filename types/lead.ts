@@ -44,6 +44,9 @@ export interface Lead {
   sequence_id: string | null;
   last_contact_at: string | null;
   next_follow_up_at: string | null;
+  deal_value: number | null;
+  close_date: string | null;
+  deal_stage: string | null;
   created_at: string;
   updated_at: string;
   property?: Pick<Property, "id" | "title"> | null;
@@ -61,6 +64,9 @@ export interface LeadFormData {
   assigned_to?: string;
   reminder_at?: string;
   sequence_id?: string;
+  deal_value?: number | null;
+  close_date?: string | null;
+  deal_stage?: string | null;
 }
 
 export interface LeadStatusConfig {

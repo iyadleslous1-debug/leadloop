@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { NotificationDropdown } from "./NotificationDropdown";
@@ -15,7 +15,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/settings": "Settings",
 };
 
-export function Navbar() {
+export function Navbar({ onToggleSidebar }: { onToggleSidebar?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const title = pageTitles[pathname] || "Dashboard";
@@ -30,8 +30,16 @@ export function Navbar() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-6">
-      <h1 className="text-lg font-semibold text-zinc-100">{title}</h1>
+    <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 md:px-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <h1 className="text-lg font-semibold text-zinc-100">{title}</h1>
+      </div>
       <div className="flex items-center gap-3">
         <NotificationDropdown />
         <button

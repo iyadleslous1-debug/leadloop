@@ -7,6 +7,7 @@ export async function GET() {
   try {
     const admin = createAdminClient();
     const now = new Date().toISOString();
+    const minLastMessage = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const { data: followUps, error } = await admin
       .from("follow_ups")
@@ -45,6 +46,22 @@ export async function GET() {
           .select("id")
           .eq("lead_id", lead.id)
           .maybeSingle();
+
+        // Throttle: skip if last message from us was < 24h ago
+        if (conv?.id) {
+          const { data: lastMsg } = await admin
+            .from("messages")
+            .select("created_at")
+            .eq("conversation_id", conv.id)
+            .eq("role", "assistant")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (lastMsg && lastMsg.created_at >= minLastMessage) {
+            console.log("[Cron] Throttle: last message within 24h for lead", lead.id, "- skipping");
+            continue;
+          }
+        }
 
         // Send via Twilio using lead owner's creds
         const creds = await loadTwilioCreds(lead.user_id);

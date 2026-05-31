@@ -17,7 +17,11 @@ type AuditAction =
   | "suggestion.discarded"
   | "ai.toggled"
   | "user.login"
-  | "user.logout";
+  | "user.logout"
+  | "team.invite"
+  | "team.remove"
+  | "lead.status_changed"
+  | "conversation.escalated";
 
 export async function logAuditEvent(
   userId: string,

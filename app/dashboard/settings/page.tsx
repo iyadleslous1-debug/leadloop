@@ -16,6 +16,7 @@ export default function SettingsPage() {
       <LeadStatusSettings />
       <FollowUpSettings />
       <FollowUpSequenceSettings />
+      <TeamMembersSettings />
       <DangerZone />
     </div>
   );
@@ -588,6 +589,150 @@ function LeadStatusSettings() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function TeamMembersSettings() {
+  const [members, setMembers] = useState<any[]>([]);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("agent");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [myRole, setMyRole] = useState<string | null>(null);
+
+  const canManage = myRole === "owner" || myRole === "admin";
+
+  async function loadTeam() {
+    try {
+      const res = await fetch("/api/team");
+      if (!res.ok) return;
+      const data = await res.json();
+      setMembers(data.members || []);
+      setInvites(data.invites || []);
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/team");
+        if (!res.ok) return;
+        const data = await res.json();
+        setMembers(data.members || []);
+        setInvites(data.invites || []);
+        const meRes = await fetch("/api/profile");
+        if (meRes.ok) {
+          const me = await meRes.json();
+          setMyRole(me.role);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    try {
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "Failed to send invite");
+        return;
+      }
+      toast.success("Invite sent!");
+      setEmail("");
+      await loadTeam();
+    } catch {
+      toast.error("Failed to send invite");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleRemove(memberId: string) {
+    if (!confirm("Remove this member from your agency?")) return;
+    try {
+      const res = await fetch(`/api/team?memberId=${memberId}`, { method: "DELETE" });
+      if (!res.ok) { toast.error("Failed to remove"); return; }
+      toast.success("Member removed");
+      await loadTeam();
+    } catch { toast.error("Failed to remove"); }
+  }
+
+  if (loading) return <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5"><p className="text-sm text-zinc-500">Loading team...</p></div>;
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+      <h3 className="mb-1 text-sm font-semibold text-zinc-100">Team Members</h3>
+      <p className="mb-4 text-xs text-zinc-500">
+        Invite teammates to your agency. Roles: Admin (full access), Agent (manage leads), Viewer (read-only).
+      </p>
+
+      <div className="mb-4 space-y-2">
+        {members.map((m: any) => (
+          <div key={m.id} className="flex items-center justify-between rounded-lg bg-zinc-800/50 px-3 py-2">
+            <div>
+              <p className="text-sm text-zinc-200">{m.name || m.email || m.id?.slice(0, 8)}</p>
+              <p className="text-xs text-zinc-500 capitalize">{m.role}</p>
+            </div>
+            {myRole === "owner" && m.role !== "owner" && (
+              <button onClick={() => handleRemove(m.id)} className="text-xs text-red-400 hover:text-red-300">
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        {invites.map((inv: any) => (
+          <div key={inv.id} className="flex items-center justify-between rounded-lg bg-zinc-800/30 px-3 py-2 opacity-60">
+            <div>
+              <p className="text-sm text-zinc-400">{inv.email}</p>
+              <p className="text-xs text-zinc-500 capitalize">{inv.role} — pending</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {canManage && (
+        <form onSubmit={handleInvite} className="flex flex-wrap items-end gap-2">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs text-zinc-500">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="colleague@agency.com"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-zinc-500">Role</label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500 focus:outline-none"
+            >
+              <option value="admin">Admin</option>
+              <option value="agent">Agent</option>
+              <option value="viewer">Viewer</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={sending}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {sending ? "Sending..." : "Invite"}
+          </button>
+        </form>
       )}
     </div>
   );

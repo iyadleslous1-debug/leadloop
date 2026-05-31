@@ -33,9 +33,10 @@ export function LeadTable({ leads }: LeadTableProps) {
             <th className="pb-3 pr-4 font-medium">Property</th>
             <th className="pb-3 pr-4 font-medium">Score</th>
             <th className="pb-3 pr-4 font-medium">Status</th>
-            <th className="pb-3 pr-4 font-medium">Source</th>
-            <th className="pb-3 pr-4 font-medium">Tags</th>
-            <th className="pb-3 pr-4 font-medium">Last Contact</th>
+            <th className="hidden md:table-cell pb-3 pr-4 font-medium">Deal</th>
+            <th className="hidden md:table-cell pb-3 pr-4 font-medium">Source</th>
+            <th className="hidden md:table-cell pb-3 pr-4 font-medium">Tags</th>
+            <th className="hidden lg:table-cell pb-3 pr-4 font-medium">Last Contact</th>
             <th className="pb-3 font-medium">Actions</th>
           </tr>
         </thead>
@@ -77,8 +78,21 @@ export function LeadTable({ leads }: LeadTableProps) {
               <td className="py-3 pr-4">
                 <LeadStatusBadge status={lead.status} score={lead.score} />
               </td>
-              <td className="py-3 pr-4 text-zinc-400 capitalize">{lead.source}</td>
-              <td className="py-3 pr-4">
+              <td className="hidden md:table-cell py-3 pr-4">
+                {lead.deal_stage ? (
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    lead.deal_stage === "won" ? "bg-emerald-500/10 text-emerald-400" :
+                    lead.deal_stage === "lost" ? "bg-red-500/10 text-red-400" :
+                    lead.deal_stage === "closing" ? "bg-blue-500/10 text-blue-400" :
+                    "bg-zinc-700/50 text-zinc-400"
+                  }`}>
+                    {lead.deal_stage}
+                    {lead.deal_value ? ` ($${(lead.deal_value).toLocaleString()})` : ""}
+                  </span>
+                ) : "—"}
+              </td>
+              <td className="hidden md:table-cell py-3 pr-4 text-zinc-400 capitalize">{lead.source}</td>
+              <td className="hidden md:table-cell py-3 pr-4">
                 <div className="flex flex-wrap gap-1">
                   {(lead.tags || []).slice(0, 3).map((t) => (
                     <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{t}</span>
@@ -88,7 +102,7 @@ export function LeadTable({ leads }: LeadTableProps) {
                   )}
                 </div>
               </td>
-              <td className="py-3 pr-4 text-zinc-400">
+              <td className="hidden lg:table-cell py-3 pr-4 text-zinc-400">
                 {lead.last_contact_at
                   ? new Date(lead.last_contact_at).toLocaleDateString()
                   : "—"}

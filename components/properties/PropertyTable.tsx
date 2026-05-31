@@ -40,11 +40,11 @@ export function PropertyTable({ properties }: PropertyTableProps) {
           <tr className="border-b border-zinc-800 text-left text-zinc-400">
             <th className="pb-3 pr-4 font-medium">Photo</th>
             <th className="pb-3 pr-4 font-medium">Title</th>
-            <th className="pb-3 pr-4 font-medium">Type</th>
+            <th className="hidden md:table-cell pb-3 pr-4 font-medium">Type</th>
             <th className="pb-3 pr-4 font-medium">Status</th>
             <th className="pb-3 pr-4 font-medium">Price</th>
-            <th className="pb-3 pr-4 font-medium">Location</th>
-            <th className="pb-3 pr-4 font-medium">Tags</th>
+            <th className="hidden md:table-cell pb-3 pr-4 font-medium">Location</th>
+            <th className="hidden lg:table-cell pb-3 pr-4 font-medium">Tags</th>
             <th className="pb-3 font-medium">Actions</th>
           </tr>
         </thead>
@@ -71,7 +71,7 @@ export function PropertyTable({ properties }: PropertyTableProps) {
                   {property.title}
                 </a>
               </td>
-              <td className="py-3 pr-4">
+              <td className="hidden md:table-cell py-3 pr-4">
                 <PropertyBadge type={property.type} />
               </td>
               <td className="py-3 pr-4">
@@ -87,11 +87,11 @@ export function PropertyTable({ properties }: PropertyTableProps) {
               <td className="py-3 pr-4 text-zinc-200 font-medium">
                 {formatPrice(property.price)}
               </td>
-              <td className="py-3 pr-4 text-zinc-400">
+              <td className="hidden md:table-cell py-3 pr-4 text-zinc-400">
                 <div>{property.city}</div>
                 <div className="text-xs">{property.location}</div>
               </td>
-              <td className="py-3 pr-4">
+              <td className="hidden lg:table-cell py-3 pr-4">
                 <div className="flex flex-wrap gap-1">
                   {(property.tags || []).slice(0, 3).map((t) => (
                     <span key={t} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{t}</span>

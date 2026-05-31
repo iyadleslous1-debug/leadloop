@@ -3,6 +3,7 @@ import { processIncomingMessage } from "@/services/whatsapp";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/services/logging";
+import { normalizePhone } from "@/lib/phone";
 
 export async function POST(request: NextRequest) {
   let phone = "unknown";
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     const ownerId = user?.id;
 
-    const result = await processIncomingMessage(phone, name || "Test User", message, ownerId);
+    const result = await processIncomingMessage(normalizePhone(phone), name || "Test User", message, ownerId);
 
     return NextResponse.json(result);
   } catch (err) {
