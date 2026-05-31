@@ -370,11 +370,10 @@ export async function processIncomingMessage(
   console.log("[STEP 6] Lead status:", leadStatus);
 
   let leadId: string | null = null;
+  let resolvedOwnerId = ownerId;
 
   if (leadScore.total >= 34) {
     console.log("\n[STEP 7] Upserting lead (score >= 0.3)...");
-
-    let resolvedOwnerId = ownerId;
     if (!resolvedOwnerId && matches[0]?.property) {
       console.log("[STEP 7] No ownerId provided, deriving from matched property...");
       const { data: prop } = await admin
