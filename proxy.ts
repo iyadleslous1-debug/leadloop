@@ -38,7 +38,8 @@ export function proxy(request: NextRequest) {
   }
 
   // CSRF protection: validate Origin/Referer on mutating API requests
-  if (isApiPath && MUTATING_METHODS.includes(request.method)) {
+  const isWebhook = pathname.startsWith("/api/whatsapp/webhook");
+  if (isApiPath && MUTATING_METHODS.includes(request.method) && !isWebhook) {
     if (!validateOrigin(request)) {
       return new NextResponse(JSON.stringify({ error: "CSRF validation failed" }), {
         status: 403,
